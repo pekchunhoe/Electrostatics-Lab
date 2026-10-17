@@ -1,0 +1,55 @@
+{
+  "viewport": "390 x 844",
+  "dpr": 2,
+  "canvas": {
+    "width": 364,
+    "height": 371
+  },
+  "results": [
+    {
+      "model": "positive",
+      "cached": {
+        "medianMs": 0,
+        "p95Ms": 0.1
+      },
+      "parameterChanged": {
+        "medianMs": 5.8,
+        "p95Ms": 8.8
+      }
+    },
+    {
+      "model": "opposite",
+      "cached": {
+        "medianMs": 0.1,
+        "p95Ms": 0.1
+      },
+      "parameterChanged": {
+        "medianMs": 14.7,
+        "p95Ms": 42.7
+      }
+    },
+    {
+      "model": "square",
+      "cached": {
+        "medianMs": 0.1,
+        "p95Ms": 0.1
+      },
+      "parameterChanged": {
+        "medianMs": 22,
+        "p95Ms": 37.9
+      }
+    },
+    {
+      "model": "plates",
+      "cached": {
+        "medianMs": 0.1,
+        "p95Ms": 0.1
+      },
+      "parameterChanged": {
+        "medianMs": 2,
+        "p95Ms": 7.4
+      }
+    }
+  ],
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 Safari/537.36"
+}

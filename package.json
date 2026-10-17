@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node scripts/server.mjs",
     "start": "node scripts/server.mjs",
-    "test": "node --test tests/physics.test.js tests/learning.test.js tests/equipotential.test.js",
+    "test": "node --test tests/physics.test.js tests/learning.test.js tests/equipotential.test.js tests/potential-models.test.js",
     "test:browser": "playwright test",
     "build": "node scripts/build.mjs"
   },

@@ -1,4 +1,5 @@
 import {attachedContour} from './equipotential.js';
+import {isPlates,plateModel} from './parallel-plates.js';
 
 export function drawSnapHighlights(ctx,s,view,dark){
   if(!s.snapEnabled||!s.contours)return;
@@ -14,6 +15,13 @@ export function drawSnapHighlights(ctx,s,view,dark){
 export function drawSnapBadges(ctx,s,view,dark){
   if(!s.snapEnabled)return;ctx.save();ctx.font='600 11px system-ui';
   const occupied=s.uniform?[]:s.charges.map(c=>{const p=view.toScreen(c);return {x:p.x-22,y:p.y-29,w:66,h:52};});
+  if(isPlates(s)){
+    const model=plateModel(s.plates);
+    for(const level of [0,s.plates.voltage]){
+      const a=view.toScreen(model.atLevel(level,-s.plates.halfLength)),b=view.toScreen(model.atLevel(level,s.plates.halfLength));
+      occupied.push({x:Math.min(a.x,b.x)-6,y:Math.min(a.y,b.y)-6,w:Math.abs(b.x-a.x)+12,h:Math.abs(b.y-a.y)+12});
+    }
+  }
   for(const key of ['probe','b']){const p=view.toScreen(s[key]);occupied.push({x:p.x-16,y:p.y-16,w:32,h:32});}
   const intersects=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   for(const key of ['probe','b']){

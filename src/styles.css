@@ -38,3 +38,11 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 #snap-attachments{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:0 8px}#snap-attachments>span{font-size:11px;color:var(--muted);overflow-wrap:anywhere}#snap-attachments>button{font-size:12px;padding:6px 10px;margin-top:5px;min-height:44px}
 .snap-status{font-size:11px;line-height:1.5;margin:6px 0 0;color:var(--muted)}.snap-status:empty{display:none}.snap-comparison{margin-top:7px;border-top:1px solid var(--border);padding-top:7px}.snap-comparison>strong{font-size:12px;color:var(--green)}.snap-comparison p{font-size:12px;margin:4px 0;line-height:1.5}
 .equipotential-working{border-top:1px solid var(--border);margin-top:12px}.equipotential-working>summary{font-size:13px}.equipotential-working .equation{font-size:15px}.equipotential-steps{font-size:12px;line-height:1.6;padding-left:20px;overflow-wrap:anywhere}#zero-work-activity{border-top:1px solid var(--border);margin-top:12px}#zero-work-activity>summary,#zero-work-answer>summary{font-size:12px}#zero-work-activity button{font-size:12px}
+
+/* Electric Potential: compact model and visualization controls. */
+.potential-layers{padding:6px 12px 0;border-bottom:1px solid var(--border)}
+.model-label{display:flex;gap:10px;align-items:center;font-size:12px}.model-label select{flex:1;width:auto;min-width:0;font-size:13px}
+.potential-visualization{display:flex;flex-wrap:wrap;gap:0 12px}.potential-visualization .check{font-size:11px;gap:6px;flex:1;white-space:normal;min-width:120px}
+.plate-controls .number-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.plate-controls>button{width:100%;margin-top:10px;font-size:12px}.plate-controls details>summary{font-size:12px}
+#field-equipotential-activity{border-top:1px solid var(--border)}#field-equipotential-activity summary{font-size:12px}#field-equipotential-activity button{font-size:12px;max-width:100%}
+[data-theme=dark] .potential-layers + .legend .purple{color:#c7a4ff}

@@ -1,3 +1,4 @@
+import {isPlates,plateModel} from './parallel-plates.js';
 import {forceOn,fieldAt,potentialAt,systemEnergy,energyChange,magnitude,motionAt,uniformField,G} from './physics.js';
 // Every answer is evaluated from the current state, after any learner edits.
 export const investigations=[
@@ -36,7 +37,7 @@ export const challenges=[
     task('Potential and its sign','Predict the potential at A, including its sign.','V',s=>getPotential(s,s.probe),'Add scalar terms with their charge signs.','V = Σ kqⱼ/rⱼ; for the uniform example V = −Eᵧy, with V = 0 at y = 0.'),
     task('Potential difference','Predict ΔV from A to B.','V',s=>getPotential(s,s.b)-getPotential(s,s.probe),'Final minus initial.','ΔV = V_B − V_A. Equal-potential points give zero difference.'),
     task('Energy and external work','Predict the test charge’s ΔU when moving from A to B.','J',s=>energyChange(s.testQ,getPotential(s,s.b)-getPotential(s,s.probe)),'Retain both the sign of q and ΔV.','ΔU = qΔV = W_ext for quasistatic motion. The field does W_field = −ΔU.'),
-    task('Field versus potential','Predict |E| at A. Compare your answer with the potential.','N/C',s=>s.uniform?Math.abs(s.uniformE):magnitude(fieldAt(s.charges,s.probe)),'Potential is a scalar; E is a vector.','For equal positive sources at the midpoint, E = 0 but V = 2kQ/r > 0.'),
+    task('Field versus potential','Predict |E| at A. Compare your answer with the potential.','N/C',s=>isPlates(s)?plateModel(s.plates).strength:s.uniform?Math.abs(s.uniformE):magnitude(fieldAt(s.charges,s.probe)),'Potential is a scalar; E is a vector.','For equal positive sources at the midpoint, E = 0 but V = 2kQ/r > 0.'),
     task('System energy','For up to three sources, predict their total system energy.','J',s=>systemEnergy(s.charges),'Use a single, pair or triangle preset.','U = Σᵢ<ⱼ kqᵢqⱼ/rᵢⱼ. Each distinct pair is counted once; this exercise is restricted to three sources.')
   ],[
     task('Deflection','Predict the initial signed vertical acceleration.','m/s²',s=>motionAt(s.motion,0).ay,'Calculate the resultant force first.','aᵧ = qEᵧ/m − g when gravity is enabled. The sign gives the initial deflection.'),
@@ -47,7 +48,7 @@ export const challenges=[
     task('Reverse the particle','What would the initial electric force Fᵧ be after reversing q?','N',s=>-s.motion.q*uniformField(s.motion.voltage,s.motion.d),'Electric force reverses; gravity does not.','F_eᵧ′ = −qEᵧ. Dynamic equilibrium is lost if q reverses without also reversing E.')
   ]
 ];
-export function getPotential(s,p){return s.uniform?-s.uniformE*p.y:potentialAt(s.charges,p);}
+export function getPotential(s,p){return isPlates(s)?plateModel(s.plates).potential(p):s.uniform?-s.uniformE*p.y:potentialAt(s.charges,p);}
 export function checkAnswer(input,answer){
   if(typeof answer==='string')return input.trim().toLowerCase()===answer;
   if(!input.trim()||!Number.isFinite(Number(input)))return false;

@@ -1,3 +1,4 @@
+import {isPlates,plateModel} from './parallel-plates.js';
 import {K,SINGULAR_DISTANCE,createSampler,energyChange} from './physics.js';
 
 export const SNAP_DISTANCE=24; // CSS pixels, independent of device pixel ratio.
@@ -7,7 +8,7 @@ export const potentialTolerance=level=>Math.max(1e-7,Math.abs(level)*1e-11); // 
 export const potentialDisplayTolerance=(va,vb)=>Math.max(2.5e-8,2.5e-12*Math.max(Math.abs(va),Math.abs(vb)));
 const caches=new WeakMap();
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
-const fieldKey=s=>JSON.stringify([s.charges,s.uniform,s.uniformE]);
+const fieldKey=s=>JSON.stringify([s.charges,s.uniform,s.uniformE,s.potentialModel,s.plates]);
 export function initializeSnapping(s){
   s.snapEnabled=false;s.attachments={probe:null,b:null};s.snapSuppressed={probe:false,b:false};s.snapMessage='';s.samePotentialDemo=false;
 }
@@ -16,8 +17,9 @@ function cache(s){
   if(entry?.key!==key){
     const sampler=createSampler(s.charges);
     const uniform=s.uniform,E=s.uniformE;
-    entry={key,geometry:new Map(),potential:p=>uniform?-E*p.y:sampler.potential(p),gradient:p=>{
-      if(uniform)return {x:0,y:-E};const e=sampler.field(p);return {x:-e.x,y:-e.y};
+    const plates=isPlates(s)?plateModel(s.plates):null;
+    entry={key,geometry:new Map(),potential:p=>plates?plates.potential(p):uniform?-E*p.y:sampler.potential(p),gradient:p=>{
+      if(plates)return {x:-plates.field.x,y:-plates.field.y};if(uniform)return {x:0,y:-E};const e=sampler.field(p);return {x:-e.x,y:-e.y};
     }};caches.set(s,entry);
   }
   return entry;
@@ -25,11 +27,12 @@ function cache(s){
 export function actualPotential(s,p){return cache(s).potential(p);}
 export function validProbePosition(s,p){
   if(!Number.isFinite(p.x)||!Number.isFinite(p.y)||Math.abs(p.x)>.25+1e-12||Math.abs(p.y)>.22+1e-12)return false;
+  if(isPlates(s)&&!plateModel(s.plates).contains(p))return false;
   if(!s.uniform&&s.charges.some(c=>c.q!==0&&distance(c,p)<SINGULAR_DISTANCE*4))return false;
   try{return Number.isFinite(actualPotential(s,p));}catch{return false;}
 }
 export function validatePotentialProbes(s){
-  if(!validProbePosition(s,s.probe)||!validProbePosition(s,s.b))throw new RangeError('Keep probes clear of point charges and inside the coordinate limits.');
+  if(!validProbePosition(s,s.probe)||!validProbePosition(s,s.b))throw new RangeError(isPlates(s)?'Keep probes inside the modeled central region, between the plates and their drawn ends.':'Keep probes clear of point charges and inside the coordinate limits.');
 }
 function inView(p,view,padding=3){const a=view.toScreen(p);return a.x>=padding&&a.x<=view.w-padding&&a.y>=padding&&a.y<=view.h-padding;}
 
@@ -55,6 +58,7 @@ export function projectPotential(s,start,level,{maxDistance=.04,stepLimit=.01,vi
 }
 
 export function contourLevels(s){
+  if(isPlates(s))return [0,.25,.5,.75,1].map(f=>f*s.plates.voltage);
   const active=s.charges.filter(c=>c.q!==0);
   if(!s.uniform&&active.length===1)return [10000,20000,40000,80000,160000,320000,640000].map(v=>v*Math.sign(active[0].q));
   return s.uniform?[-3000,-2000,-1000,0,1000,2000,3000]:[-320000,-160000,-80000,-40000,-20000,-10000,0,10000,20000,40000,80000,160000,320000];
@@ -75,17 +79,28 @@ function connectSegments(segments,level){
 // The renderer and interaction use the SAME contour geometry. Its chords are
 // search seeds only; every attachment is refined against the real potential.
 export function contourGeometry(s,view,levels=contourLevels(s),custom=false){
-  const model=cache(s),key=JSON.stringify([view.w,view.h,view.scale,levels,custom]);
+  const model=cache(s),key=JSON.stringify([view.w,view.h,view.scale,levels,custom,!!s.fieldLines]);
   if(model.geometry.has(key))return model.geometry.get(key);
   const active=s.charges.filter(c=>c.q!==0),single=!s.uniform&&active.length===1?active[0]:null;
   const result={key:model.key+key,levels:[],components:[]};
+  if(isPlates(s)){
+    const plates=plateModel(s.plates);
+    for(const level of levels){
+      if(level<0||level>s.plates.voltage)continue;
+      const segments=[],count=Math.max(8,Math.ceil(2*s.plates.halfLength*view.scale/5));
+      for(let i=0;i<count;i++)segments.push({a:view.toScreen(plates.atLevel(level,s.plates.halfLength*(2*i/count-1))),b:view.toScreen(plates.atLevel(level,s.plates.halfLength*(2*(i+1)/count-1)))});
+      result.levels.push({level,segments});result.components.push({id:result.components.length,level,segments});
+    }
+    if(model.geometry.size>=6)model.geometry.delete(model.geometry.keys().next().value);
+    model.geometry.set(key,result);return result;
+  }
   let samples,nx,ny;
   if(!single){
-    const cell=12;nx=Math.ceil(view.w/cell);ny=Math.ceil(view.h/cell);samples=[];
+    const cell=s.fieldLines?8:12;nx=Math.ceil(view.w/cell);ny=Math.ceil(view.h/cell);samples=[];
     for(let j=0;j<=ny;j++){samples[j]=[];for(let i=0;i<=nx;i++){try{samples[j][i]=model.potential(view.toWorld({x:i*cell,y:j*cell}));}catch{samples[j][i]=null;}}}
   }
   for(const level of levels){
-    const segments=[];let circle=null;
+    const segments=[],crossings=s.fieldLines?new Map():null;let circle=null;
     if(single){
       const radius=K*single.q/level,screenRadius=radius*view.scale;
       if(!Number.isFinite(screenRadius)||!(radius>0)||(!custom&&(screenRadius<20||screenRadius>Math.hypot(view.w,view.h))))continue;
@@ -101,7 +116,7 @@ export function contourGeometry(s,view,levels=contourLevels(s),custom=false){
         segments.push({a:point(i*2*Math.PI/count),b:point((i+1)*2*Math.PI/count)});
       }
     }else{
-      const cell=12;
+      const cell=s.fieldLines?8:12;
       for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){
         const values=[samples[j][i],samples[j][i+1],samples[j+1][i+1],samples[j+1][i]];
         if(values.every(v=>v!==null)&&(Math.min(...values)>level||Math.max(...values)<level))continue;
@@ -111,7 +126,27 @@ export function contourGeometry(s,view,levels=contourLevels(s),custom=false){
           for(let k=0;k<3;k++){
             const a=points[ids[k]],b=points[ids[(k+1)%3]];
             if(a.z===null||b.z===null)continue;
-            if((a.z<level)!==(b.z<level)){const t=(level-a.z)/(b.z-a.z);hits.push({x:a.x+t*(b.x-a.x),y:a.y+t*(b.y-a.y)});}
+            if((a.z<level)!==(b.z<level)){
+              const edgeKey=crossings?`${Math.min(a.x,b.x)},${Math.min(a.y,b.y)},${Math.max(a.x,b.x)},${Math.max(a.y,b.y)}`:null;
+              if(crossings?.has(edgeKey)){hits.push(crossings.get(edgeKey));continue;}
+              let t=(level-a.z)/(b.z-a.z);
+              if(s.fieldLines){
+                // Refine crossings on the grid edge using the SAME scalar V.
+                // Linear interpolation alone visibly tilts short contour chords.
+                let low=0,high=1;
+                for(let n=0;n<20;n++){
+                  const world=view.toWorld({x:a.x+t*(b.x-a.x),y:a.y+t*(b.y-a.y)});
+                  try{
+                    const residual=model.potential(world)-level;
+                    if(Math.abs(residual)<=potentialTolerance(level))break;
+                    if((residual<0)===(a.z<level))low=t;else high=t;
+                    const g=model.gradient(world),derivative=(g.x*(b.x-a.x)-g.y*(b.y-a.y))/view.scale,next=t-residual/derivative;
+                    t=Number.isFinite(next)&&next>low&&next<high?next:(low+high)/2;
+                  }catch{break;}
+                }
+              }
+              const hit={x:a.x+t*(b.x-a.x),y:a.y+t*(b.y-a.y)};if(crossings)crossings.set(edgeKey,hit);hits.push(hit);
+            }
           }
           if(hits.length===2&&distance(hits[0],hits[1])>1e-8)segments.push({a:hits[0],b:hits[1]});
         }
@@ -188,7 +223,7 @@ export function movePotentialProbe(s,key,target,view){
   if(!s.snapEnabled||!s.contours){Object.assign(s[key],target);return true;}
   const held=s.attachments[key];
   if(held){
-    if((s.uniform&&s.uniformE===0)||(!s.uniform&&s.charges.every(c=>c.q===0))){Object.assign(s[key],target);return true;}
+    if((s.uniform&&!isPlates(s)&&s.uniformE===0)||(!s.uniform&&s.charges.every(c=>c.q===0))){Object.assign(s[key],target);return true;}
     const geometry=contourGeometry(s,view,[held.level],true);
     let branch=held.componentId;
     if(held.geometryKey!==geometry.key){const near=candidates(geometry,s[key],view)[0];branch=near&&near.distance<=8?near.component.id:undefined;}
@@ -238,7 +273,7 @@ export function samePotential(s,view){
   let hit;
   if(near&&near.distance<=8)hit=refinedCandidate(s,geometry,s.b,view,{componentId:near.component.id,exclude:s.probe,minSeparation:26});
   // A constant potential fills the workspace; no distinguished contour curve exists.
-  if(!hit&&((s.uniform&&s.uniformE===0)||(!s.uniform&&s.charges.every(c=>c.q===0)))){
+  if(!hit&&((s.uniform&&!isPlates(s)&&s.uniformE===0)||(!s.uniform&&s.charges.every(c=>c.q===0)))){
     const options=[s.b,...[1,-1].map(sign=>({x:s.probe.x+sign*32/view.scale,y:s.probe.y}))];
     const point=options.find(p=>validProbePosition(s,p)&&inView(p,view)&&distance(p,s.probe)*view.scale>=26);
     if(point)hit={point,component:null};
