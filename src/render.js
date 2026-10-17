@@ -1,4 +1,5 @@
 import {K,forceOn,magnitude,motionAt,uniformField,createSampler} from './physics.js';
+import {drawIndividualFields} from './field-vectors.js';
 export const colors={positive:'#cb5438',negative:'#326db0',field:'#568f89',result:'#087a6b',individual:'#aa7437',text:'#27494e',grid:'#d9e3df',purple:'#7955ad'};
 const layerCache=new WeakMap();
 export function viewport(w,h,s,tab){const scale=Math.min(w/(tab===3?.42:.60),h/(tab===3?.25:.50))*s.zoom;return {w,h,scale,toScreen:p=>({x:w/2+p.x*scale,y:h/2-p.y*scale}),toWorld:p=>({x:(p.x-w/2)/scale,y:(h/2-p.y)/scale})};}
@@ -90,7 +91,8 @@ export function draw(canvas,s,tab){
       if(s.components){arrow(origin,{x:f.x,y:0},colors.purple,75*Math.abs(f.x)/max,1.6);arrow(origin,{x:0,y:f.y},colors.purple,75*Math.abs(f.y)/max,1.6);}
       if(s.fbd)text(`Free-body: target q${target.id}`,10,40);
     }catch{}}
-    if(tab===1||tab===2){const e=s.uniform?{x:0,y:s.uniformE}:safeField(s.probe);if(tab===1||s.overlay)arrow(s.probe,e,colors.result,55,3);}
+    if(tab===1&&s.individualFields)drawIndividualFields(ctx,s,v,dark);
+    else if(tab===1||tab===2){const e=s.uniform?{x:0,y:s.uniformE}:safeField(s.probe);if(tab===1||s.overlay)arrow(s.probe,e,colors.result,55,3);}
     if(!(tab===2&&s.uniform))for(const charge of s.charges){const a=p(charge);if(charge.id===s.selected){ctx.beginPath();ctx.arc(a.x,a.y,21,0,Math.PI*2);ctx.strokeStyle=colors.result;ctx.lineWidth=2;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);}ctx.beginPath();ctx.arc(a.x,a.y,14,0,Math.PI*2);ctx.fillStyle=charge.q<0?colors.negative:colors.positive;ctx.fill();text(charge.q===0?'0':charge.q>0?'+':'−',a.x-6,a.y+6,'#fff',21);text(`q${charge.id}`,a.x+18,a.y-13);}
     if(tab===1||tab===2)for(const [label,world] of tab===2?[['A',s.probe],['B',s.b]]:[['A',s.probe]]){const a=p(world);ctx.beginPath();ctx.arc(a.x,a.y,10,0,Math.PI*2);ctx.fillStyle=label==='A'?colors.result:colors.purple;ctx.fill();text(label,a.x-4,a.y+4,'#fff',11);line({x:a.x-15,y:a.y},{x:a.x+15,y:a.y},label==='A'?colors.result:colors.purple,1);line({x:a.x,y:a.y-15},{x:a.x,y:a.y+15},label==='A'?colors.result:colors.purple,1);}
     text(tab===0?'Drag a charge · select the force target':tab===1?'Drag sources or probe A':'Drag probes A and B to compare potential',10,20);

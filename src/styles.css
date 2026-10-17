@@ -13,3 +13,21 @@
 body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}.topbar{height:calc(52px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top)}
 @media(max-width:359px){.topbar{height:calc(52px + env(safe-area-inset-top))}}
 @media(max-height:500px) and (orientation:landscape){.topbar{height:calc(48px + env(safe-area-inset-top))}}
+
+/* Electric Field only: compact overlay controls and optional numerical detail. */
+.field-controls,.field-breakdown{--field-one:#2b67b1;--field-two:#a4550b;--field-three:#7650ab;--field-four:#b33383}
+[data-theme=dark] .field-controls,[data-theme=dark] .field-breakdown{--field-one:#90bfff;--field-two:#ffbc75;--field-three:#c5abff;--field-four:#ff9bd7}
+.field-controls{padding:0 12px;border-top:1px solid var(--border)}.field-controls>.check{font-size:12px}
+.field-vector-key{display:flex;gap:4px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin;padding:2px 0 4px}
+.field-vector-key[hidden],.field-scale-note[hidden],#individual-field-panel[hidden]{display:none}
+.field-vector-key button{flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:5px;min-height:44px;padding:6px 9px;font-size:12px;color:var(--vector-color,var(--green));border-color:var(--border)}
+.field-vector-key button[aria-pressed=true]{background:var(--soft);border-color:currentColor;box-shadow:inset 0 -2px currentColor}
+[data-field-vector="1"],.field-entry[data-field-source="1"]{--vector-color:var(--field-one)}
+[data-field-vector="2"],.field-entry[data-field-source="2"]{--vector-color:var(--field-two)}
+[data-field-vector="3"],.field-entry[data-field-source="3"]{--vector-color:var(--field-three)}
+[data-field-vector="4"],.field-entry[data-field-source="4"]{--vector-color:var(--field-four)}
+.field-swatch{width:13px;border-top:2px solid currentColor}.field-vector-key [data-field-vector="2"] .field-swatch{border-top-style:dashed}.field-vector-key [data-field-vector="3"] .field-swatch{border-top-style:dotted}.field-vector-key [data-field-vector="4"] .field-swatch{border-top-style:double;border-top-width:3px}
+.field-scale-note{font-size:11px;line-height:1.5;margin:3px 0 8px;color:var(--muted)}
+.field-entry{border-top:1px solid var(--border);padding:0 0 12px}.field-entry h4{color:var(--vector-color,var(--green));margin-top:13px}.field-resultant{border-top:2px solid var(--green)}
+.field-values{margin:8px 0 0;font-size:12px;line-height:1.5;font-variant-numeric:tabular-nums}.field-values>div{display:grid;grid-template-columns:minmax(75px,.8fr) minmax(0,1.2fr);gap:8px;padding:4px 0}.field-values dt{color:var(--muted)}.field-values dd{margin:0;overflow-wrap:anywhere}
+.field-breakdown .equation{font-size:16px;padding:10px 8px}.equation math{font-size:1em}.field-method{font-size:12px;line-height:1.6;padding-left:20px;overflow-wrap:anywhere}.field-method li{padding:4px 0}
