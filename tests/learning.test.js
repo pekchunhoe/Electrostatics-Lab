@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {makeState,chargePresets,motionPresets,loadPreset,loadExperiment} from '../src/presets.js';
+import {challenges,investigations,checkAnswer} from '../src/learning.js';
+import {validateCharges,validateMotion,motionAt} from '../src/physics.js';
+test('all tabs have three investigations and at least three live challenges',()=>{for(let t=0;t<4;t++){assert.ok(investigations[t].length>=3);assert.ok(challenges[t].length>=3);const state=makeState(t);for(const challenge of challenges[t]){const answer=challenge.answer(state);assert.ok(typeof answer==='string'||Number.isFinite(answer));assert.ok(checkAnswer(String(answer),answer));}}});
+test('every charge preset is valid, cloned and resets consistently',()=>{const s=makeState(0);for(const key of Object.keys(chargePresets)){loadPreset(s,key);validateCharges(s.charges);const before=structuredClone(s.charges);s.charges[0].q=123;loadPreset(s,key);assert.deepEqual(s.charges,before);}assert.throws(()=>loadPreset(s,'missing'));});
+test('four motion experiments have valid parameters and reset clocks',()=>{const s=makeState(3);for(const key of Object.keys(motionPresets)){loadExperiment(s,key);validateMotion(s.motion);s.time=1;s.playing=true;loadExperiment(s,key);assert.equal(s.time,0);assert.equal(s.playing,false);}});
+test('challenge answers track parameter edits rather than a hard-coded answer',()=>{for(let t=0;t<4;t++){const s=makeState(t),q=challenges[t][t===0?1:0],a=q.answer(s);if(t===3)s.motion.q*=2;else s.charges[0].q*=2;const b=q.answer(s);assert.notEqual(a,b);}});
+test('numeric input tolerances, scientific notation and blank input',()=>{assert.ok(checkAnswer('4.49e5',449378));assert.equal(checkAnswer('',0),false);assert.equal(checkAnswer('Infinity',1),false);assert.ok(checkAnswer(' Attract ','attract'));assert.equal(checkAnswer('1.03',1),false);assert.ok(checkAnswer('1.01',1));});
+test('equilibrium preset cancels roundoff to zero acceleration',()=>{const s=makeState(3);loadExperiment(s,'equilibrium');assert.equal(motionAt(s.motion,0).ay,0);assert.equal(motionAt(s.motion,.1).vy,0);});
+test('small genuine force imbalances and tiny forces are preserved',()=>{const s=makeState(3);loadExperiment(s,'equilibrium');s.motion.voltage*=1+1e-10;assert.ok(motionAt(s.motion,0).ay>1e-10);s.motion.gravity=false;s.motion.q=1e-30;assert.ok(motionAt(s.motion,0).ay>0);});

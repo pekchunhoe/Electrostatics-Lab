@@ -1,0 +1,14 @@
+{
+  "name": "sp025-electrostatics-lab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/server.mjs",
+    "start": "node scripts/server.mjs",
+    "test": "node --test tests/physics.test.js tests/learning.test.js",
+    "test:browser": "playwright test",
+    "build": "node scripts/build.mjs"
+  },
+  "devDependencies": { "@playwright/test": "^1.56.1" }
+}
