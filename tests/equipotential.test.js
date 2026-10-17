@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {potentialAt} from '../src/physics.js';
+import {movementWorking} from '../src/equipotential-ui.js';
 import {makeState,loadPreset} from '../src/presets.js';
 import {initializeSnapping,setSnapping,releaseProbe,movePotentialProbe,reconcileAttachments,samePotential,potentialComparison,potentialTolerance,actualPotential,projectPotential,validProbePosition,validatePotentialProbes,contourGeometry} from '../src/equipotential.js';
 
@@ -154,4 +155,84 @@ test('removing one dipole source makes its zero contour unavailable without infi
   const geometry=contourGeometry(s,view(),[0],true);assert.equal(geometry.components.length,0);assert.equal(geometry.levels.length,0);
   reconcileAttachments(s,view());assert.equal(s.attachments.probe,null);assert.deepEqual(s.probe,before);assert.ok(Number.isFinite(actualPotential(s,s.probe)));
   assert.equal(contourGeometry(s,view(),[1e-100],true).components.length,0);
+});
+
+function at160k(preset='positive'){
+  const s=state(preset),level=preset==='negative'?-160000:160000;
+  setSnapping(s,true);
+  movePotentialProbe(s,'probe',{x:referenceK*Math.abs(s.charges[0].q)/160000,y:0},view());
+  assert.equal(s.attachments.probe.level,level);assert.ok(samePotential(s,view()).ok);
+  return s;
+}
+test('160 kV screenshot residual displays exact zeros while retaining raw engine values',()=>{
+  const s=at160k();
+  // A valid floating-point coordinate perturbation reproduces the screenshot's
+  // ~2.037e-10 V residual without replacing the underlying potential equation.
+  Object.assign(s.b,{x:0,y:referenceK*s.charges[0].q/(actualPotential(s,s.probe)+2.037e-10)});
+  const before=structuredClone(s),va=potentialAt(s.charges,s.probe),vb=potentialAt(s.charges,s.b),c=potentialComparison(s);
+  close(c.dv,2.037e-10,3e-11);assert.notEqual(c.dv,0);assert.equal(c.va,va);assert.equal(c.vb,vb);assert.equal(c.dv,vb-va);
+  assert.equal(c.du,s.testQ*c.dv);assert.equal(c.work,-c.du);assert.equal(c.equal,true);
+  assert.deepEqual(c.display,{dv:0,du:0,work:0});close(c.tolerance,4e-7,1e-18);
+  assert.deepEqual(s,before);assert.equal(potentialAt(s.charges,s.b),vb);
+  const working=movementWorking(s,c,(value,unit)=>`${value} ${unit}`,true);
+  for(const text of ['V_A = V_B (verified equipotential)','ΔV = 0 V','ΔU = 0 J','W_field = 0 J'])assert.ok(working.includes(text));
+  assert.ok(!working.includes(String(c.dv)));
+});
+test('negative 160 kV equality and either test-charge sign yield positive display zeros',()=>{
+  for(const preset of ['positive','negative'])for(const q of [-2e-9,0,2e-9]){
+    const s=at160k(preset);s.testQ=q;const c=potentialComparison(s);assert.equal(c.equal,true);
+    assert.deepEqual(c.display,{dv:0,du:0,work:0});assert.equal(c.du,q*c.dv);assert.equal(c.work,-c.du);
+  }
+});
+test('verified zero display survives a full circle of independently projected sliding positions',()=>{
+  const s=at160k(),radius=referenceK*s.charges[0].q/160000;
+  for(let i=0;i<=72;i++){
+    const t=i*2*Math.PI/72;assert.ok(movePotentialProbe(s,'b',{x:radius*Math.cos(t),y:radius*Math.sin(t)},view()));
+    const c=potentialComparison(s);assert.equal(c.equal,true);assert.deepEqual(c.display,{dv:0,du:0,work:0});
+    assert.equal(c.dv,potentialAt(s.charges,s.b)-potentialAt(s.charges,s.probe));
+  }
+});
+test('either detachment invalidates zero display immediately, including a genuine tiny difference',()=>{
+  for(const key of ['probe','b']){
+    const s=at160k();Object.assign(s.b,{x:0,y:referenceK*s.charges[0].q/(160000+2.037e-10)});
+    assert.equal(potentialComparison(s).equal,true);releaseProbe(s,key);
+    const c=potentialComparison(s);assert.equal(c.equal,false);assert.notEqual(c.dv,0);assert.deepEqual(c.display,{dv:c.dv,du:c.du,work:c.work});
+    s[key].x+=.01;const moved=potentialComparison(s);assert.equal(moved.equal,false);assert.equal(moved.display.dv,moved.dv);assert.ok(Math.abs(moved.dv)>1);
+  }
+});
+test('different attached levels retain signed 80 kV differences, energy and field work',()=>{
+  for(const reverse of [false,true]){
+    const s=at160k();releaseProbe(s,'b');s.snapSuppressed.b=false;movePotentialProbe(s,'b',{x:referenceK*s.charges[0].q/80000,y:0},view());
+    if(reverse){[s.probe,s.b]=[s.b,s.probe];[s.attachments.probe,s.attachments.b]=[s.attachments.b,s.attachments.probe];}
+    const c=potentialComparison(s);assert.equal(c.equal,false);close(c.display.dv,reverse?80000:-80000,1e-7);
+    assert.equal(c.display.du,s.testQ*c.dv);assert.equal(c.display.work,-s.testQ*c.dv);
+  }
+});
+test('unattached tiny signed physical differences are never tolerance-clamped',()=>{
+  for(const sign of [-1,1]){
+    const s=state();s.uniform=true;s.uniformE=15000;s.probe={x:0,y:.01};s.b={x:.1,y:.01+sign*1e-14};
+    s.samePotentialDemo=true;const c=potentialComparison(s);assert.ok(Math.abs(c.dv)<c.tolerance);assert.notEqual(c.dv,0);
+    assert.equal(Math.sign(c.dv),-sign);assert.equal(c.equal,false);assert.equal(c.display.dv,c.dv);assert.equal(c.display.du,s.testQ*c.dv);assert.equal(c.display.work,-c.du);
+  }
+});
+test('out-of-tolerance projection and shared off-contour drift cannot authorize display zero',()=>{
+  for(const commonDrift of [false,true]){
+    const s=at160k(),shift=1e-5;
+    s.b={x:0,y:referenceK*s.charges[0].q/(160000+shift)};
+    if(commonDrift)s.probe={x:referenceK*s.charges[0].q/(160000+shift+2e-10),y:0};
+    const c=potentialComparison(s);assert.equal(c.sameLevel,true);assert.equal(c.equal,false);assert.notEqual(c.dv,0);assert.equal(c.display.dv,c.dv);
+    if(commonDrift)assert.ok(Math.abs(c.dv)<c.tolerance);else assert.ok(Math.abs(c.dv)>c.tolerance);
+    assert.ok(movementWorking(s,c,String,true).includes('alignment is unverified'));
+  }
+});
+test('stale field associations, hidden contours, OFF and different assigned levels invalidate display zero',()=>{
+  for(const invalidate of [s=>s.charges[0].q*=1.000001,s=>s.contours=false,s=>s.snapEnabled=false,s=>s.attachments.b.level+=1e-9]){
+    const s=at160k();invalidate(s);const c=potentialComparison(s);assert.equal(c.equal,false);assert.equal(c.display.dv,c.dv);
+  }
+});
+test('mixed polarity and three/four-source same-potential demonstrations use verified display zeros',()=>{
+  for(const preset of ['opposite','equal','triangle','square']){
+    const s=state(preset);assert.ok(samePotential(s,view()).ok);const c=potentialComparison(s);assert.equal(c.equal,true,preset);
+    assert.deepEqual(c.display,{dv:0,du:0,work:0});assert.equal(c.dv,potentialAt(s.charges,s.b)-potentialAt(s.charges,s.probe));
+  }
 });

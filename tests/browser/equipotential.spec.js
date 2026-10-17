@@ -8,6 +8,15 @@ async function details(page,id){if(!await page.locator('#'+id).evaluate(el=>el.o
 async function input(page,id,value){await page.locator('#'+id).fill(String(value));await page.locator('#'+id).dispatchEvent('change');await frames(page);}
 async function position(page,key){const prefix=key==='probe'?'probe':'b';return {x:Number(await page.locator('#'+prefix+'-x').inputValue()),y:Number(await page.locator('#'+prefix+'-y').inputValue())};}
 async function comparison(page){return page.locator('#snap-comparison').evaluate(el=>Object.fromEntries(['va','vb','dv','du','work','tolerance'].map(key=>[key,Number(el.dataset[key])])));}
+async function displayedZero(page){
+  await expect(page.locator('#live-strip strong').nth(1)).toHaveText('0 V');
+  await expect(page.locator('#snap-comparison')).toHaveAttribute('data-equal','true');
+  await expect(page.locator('#snap-comparison')).toContainText('Computed ΔV = 0 V; ΔU = 0 J; W_field = 0 J.');
+  await expect(page.locator('#calculation-body > p').filter({hasText:'ΔV ='}).filter({hasText:'V_B ='})).toContainText('= 0 V');
+  const energy=page.locator('#calculation-body > p').filter({hasText:'External-work signs'});
+  await expect(energy).toContainText('= 0 J');await expect(energy).toContainText('W_field = 0 J');
+  await expect(page.locator('#equipotential-working > p').filter({hasText:'V_A ='})).toContainText('ΔV = 0 VΔU = 0 JW_field = 0 J');
+}
 function close(actual,expected,tolerance=2e-7){expect(Math.abs(actual-expected)).toBeLessThanOrEqual(tolerance);}
 async function noOverflow(page){expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(page.viewportSize().width);}
 async function assertLevel(page,key,level,q=2e-6,source={x:0,y:0}){
@@ -48,12 +57,15 @@ for(const [width,height] of [[320,568],[360,640],[390,844],[430,932],[768,1024],
     close(c.va,analytical(a));close(c.vb,analytical(b));expect(Math.abs(c.dv)).toBeLessThanOrEqual(c.tolerance);close(c.dv,analytical(b)-analytical(a));
     close(c.du,2e-9*c.dv,1e-20);close(c.work,-2e-9*c.dv,1e-20);
     await expect(page.locator('#snap-comparison')).toContainText('Same Equipotential Surface');await expect(page.locator('#snap-comparison')).toContainText('Computed ΔV');
+    await displayedZero(page);
     expect((await page.locator('#scene').boundingBox()).height).toBe(heightBefore);
     for(const button of [page.locator('#same-potential'),page.locator('#detach-a'),page.locator('#detach-b')])expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await page.evaluate(()=>scrollTo(0,0));await frames(page);await noOverflow(page);
     await page.screenshot({path:`test-results/screenshots/snap-${width}-${height}-${theme}-attached.png`});
     const beforeA=await position(page,'probe'),beforeB=await position(page,'b');await page.getByRole('button',{name:'Detach B',exact:true}).click();
     expect(await position(page,'probe')).toEqual(beforeA);expect(await position(page,'b')).toEqual(beforeB);
+    await expect(page.locator('#snap-comparison')).toHaveAttribute('data-equal','false');
+    await expect(page.locator('#snap-comparison')).not.toContainText('Same Equipotential Surface');
     await expect(page.locator('#snap-a-state')).toHaveAttribute('data-attachment','attached');await expect(page.locator('#detach-b')).toBeHidden();
     await page.evaluate(()=>scrollTo(0,0));await frames(page);
     await page.screenshot({path:`test-results/screenshots/snap-${width}-${height}-${theme}-detached.png`});
@@ -75,6 +87,7 @@ test('mouse snapping and curved sliding maintain the actual analytical potential
   const points=[135,140,145,150,155,160].map(deg=>({x:r*Math.cos(deg*Math.PI/180),y:r*Math.sin(deg*Math.PI/180)}));
   await drag(page,context,'b',points);await assertLevel(page,'b',80000);expect(await position(page,'probe')).toEqual(a);
   const c=await comparison(page);expect(Math.abs(c.dv)).toBeLessThanOrEqual(c.tolerance);
+  await displayedZero(page);
 });
 
 test('touch snapping, sliding, detachment, free movement and recapture work on a phone',async({page,context})=>{
@@ -83,6 +96,7 @@ test('touch snapping, sliding, detachment, free movement and recapture work on a
   await drag(page,context,'b',[{x:-.16,y:.16}],true);await assertLevel(page,'b',80000);
   const r=referenceK*2e-6/80000,a=await position(page,'probe');
   await drag(page,context,'b',[140,145,150,155].map(deg=>({x:r*Math.cos(deg*Math.PI/180),y:r*Math.sin(deg*Math.PI/180)})),true);await assertLevel(page,'b',80000);
+  await displayedZero(page);
   await page.locator('#detach-b').click();const before=await position(page,'b');
   await drag(page,context,'b',[{x:before.x-.002,y:before.y+.001}],true);await expect(page.locator('#detach-b')).toBeHidden();
   const target={x:-.05,y:-.15};await drag(page,context,'b',[target],true);let moved=await position(page,'b');close(moved.x,target.x,5e-5);close(moved.y,target.y,5e-5);
@@ -112,7 +126,7 @@ test('keyboard controls, optional explanation and guided zero-work activity are 
   await details(page,'zero-work-answer');await expect(page.locator('#zero-work-answer')).toContainText('This does not require E = 0');
   await page.locator('#zero-work-activity>summary').evaluate(el=>el.scrollIntoView({block:'start',behavior:'instant'}));await page.screenshot({path:'test-results/screenshots/snap-320-activity.png'});
   await noOverflow(page);
-  await page.locator('#same-potential').click();await page.locator('#detach-a').focus();await page.keyboard.press('Enter');
+  await page.locator('#same-potential').click();await displayedZero(page);await page.locator('#detach-a').focus();await page.keyboard.press('Enter');
   await expect(page.locator('#detach-a')).toBeHidden();await expect(page.locator('#detach-b')).toBeVisible();
 });
 
@@ -124,6 +138,7 @@ test('negative, mixed, three/four-source and uniform examples support the demons
   for(const preset of ['negative','opposite','triangle','square']){
     await page.locator('#preset').selectOption(preset);await page.locator('#same-potential').click();
     await expect(page.locator('#snap-comparison')).toHaveAttribute('data-equal','true');const c=await comparison(page);expect(Math.abs(c.dv)).toBeLessThanOrEqual(c.tolerance);
+    await displayedZero(page);
     if(preset==='negative'){await page.evaluate(()=>scrollTo(0,0));await frames(page);await page.screenshot({path:'test-results/screenshots/snap-390-negative.png'});}
   }
   await details(page,'settings');await page.locator('#potential-mode').selectOption('uniform');await page.locator('#same-potential').click();
@@ -159,4 +174,38 @@ test('a free probe can rejoin the visible custom contour created through A',asyn
   close(Number(await page.locator('#snap-b-state').getAttribute('data-level')),level);
   await expect(page.locator('#snap-comparison')).toHaveAttribute('data-equal','true');
   await page.evaluate(()=>scrollTo(0,0));await frames(page);await page.screenshot({path:'test-results/screenshots/snap-390-recaptured.png'});
+});
+
+test('160 kV demo shows exact zeros; a detached tiny difference remains visible with its sign',async({page})=>{
+  await page.setViewportSize({width:390,height:844});await potentialTab(page);await page.locator('#preset').selectOption('positive');await details(page,'settings');
+  await input(page,'probe-x',referenceK*2e-6/160000);await input(page,'probe-y',0);await page.locator('#same-potential').click();
+  await displayedZero(page);close((await comparison(page)).va,160000,1e-7);
+  await page.evaluate(()=>scrollTo(0,0));await frames(page);await page.screenshot({path:'test-results/screenshots/zero-160kv-390.png'});
+  await page.locator('#detach-b').click();await expect(page.locator('#snap-comparison')).toHaveAttribute('data-equal','false');
+  await page.locator('#potential-mode').selectOption('uniform');await input(page,'uniform-e',15000);await input(page,'probe-y',.01);
+  for(const sign of [-1,1]){
+    await input(page,'b-y',.01+sign*1e-14);const c=await comparison(page);
+    expect(Math.abs(c.dv)).toBeLessThan(c.tolerance);expect(Math.sign(c.dv)).toBe(-sign);
+    await expect(page.locator('#live-strip strong').nth(1)).not.toHaveText('0 V');
+    await expect(page.locator('#live-strip strong').nth(1)).toContainText('× 10');
+    await expect(page.locator('#snap-comparison')).toHaveAttribute('data-equal','false');
+    const working=page.locator('#equipotential-working > p').filter({hasText:'V_A ='});
+    await expect(working).not.toContainText('ΔV = 0 V');await expect(working).not.toContainText('ΔU = 0 J');await expect(working).not.toContainText('W_field = 0 J');
+    await expect(page.locator('#snap-comparison')).not.toContainText('ΔV = 0 V');
+    expect((await page.locator('#live-strip strong').nth(1).textContent()).startsWith('-')).toBe(sign===1);
+  }
+  await page.locator('#same-potential').click();await displayedZero(page);
+});
+
+test('different 160 kV and 80 kV attached contours keep signed nonzero measurements',async({page,context})=>{
+  await page.setViewportSize({width:1280,height:800});await potentialTab(page);await page.locator('#preset').selectOption('positive');
+  await page.locator('#snap-equipotential').check();
+  await drag(page,context,'probe',[{x:.112,y:0}]);await drag(page,context,'b',[{x:-.225,y:0}]);
+  close((await comparison(page)).dv,-80000,2e-6);await expect(page.locator('#live-strip strong').nth(1)).toHaveText('-8.000 × 10⁴ V');
+  await expect(page.locator('#snap-comparison')).toHaveAttribute('data-equal','false');
+  await page.locator('#detach-a').click();await page.locator('#detach-b').click();
+  await page.locator('#snap-equipotential').uncheck();await page.locator('#snap-equipotential').check();
+  await drag(page,context,'probe',[{x:.225,y:0}]);await drag(page,context,'b',[{x:-.112,y:0}]);
+  close((await comparison(page)).dv,80000,2e-6);await expect(page.locator('#live-strip strong').nth(1)).toHaveText('8.000 × 10⁴ V');
+  await expect(page.locator('#snap-comparison')).toHaveAttribute('data-equal','false');
 });

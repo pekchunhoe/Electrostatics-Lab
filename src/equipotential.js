@@ -2,6 +2,9 @@ import {K,SINGULAR_DISTANCE,createSampler,energyChange} from './physics.js';
 
 export const SNAP_DISTANCE=24; // CSS pixels, independent of device pixel ratio.
 export const potentialTolerance=level=>Math.max(1e-7,Math.abs(level)*1e-11); // volts
+// Two independently projected points each stop at T/8. Their difference has
+// a T/4 error budget. This is a display rule, never a solver or physics clamp.
+export const potentialDisplayTolerance=(va,vb)=>Math.max(2.5e-8,2.5e-12*Math.max(Math.abs(va),Math.abs(vb)));
 const caches=new WeakMap();
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const fieldKey=s=>JSON.stringify([s.charges,s.uniform,s.uniformE]);
@@ -31,7 +34,7 @@ export function validatePotentialProbes(s){
 function inView(p,view,padding=3){const a=view.toScreen(p);return a.x>=padding&&a.x<=view.w-padding&&a.y>=padding&&a.y<=view.h-padding;}
 
 // Damped Newton projection along ∇V = −E. A trust region and backtracking
-// reject singularities, nonconvergence and jumps; the displayed V is never forced.
+// reject singularities, nonconvergence and jumps; physical values stay unchanged.
 export function projectPotential(s,start,level,{maxDistance=.04,stepLimit=.01,view,maxIterations=40}={}){
   if(!Number.isFinite(level)||!validProbePosition(s,start)||(view&&!inView(start,view)))return null;
   const model=cache(s),tolerance=potentialTolerance(level)/8;let p={...start};
@@ -251,8 +254,17 @@ export function samePotential(s,view){
 }
 export function potentialComparison(s){
   const va=actualPotential(s,s.probe),vb=actualPotential(s,s.b),dv=vb-va,du=energyChange(s.testQ,dv);
-  const tolerance=potentialTolerance(va)+potentialTolerance(vb);
-  return {va,vb,dv,du,work:-du,tolerance,equal:Math.abs(dv)<=tolerance};
+  const tolerance=potentialDisplayTolerance(va,vb),a=s.attachments?.probe,b=s.attachments?.b;
+  const sameLevel=!!(a&&b&&Number.isFinite(a.level)&&a.level===b.level);
+  const current=sameLevel&&s.snapEnabled&&s.contours&&a.fieldKey===fieldKey(s)&&b.fieldKey===fieldKey(s);
+  const aligned=current&&validProbePosition(s,s.probe)&&validProbePosition(s,s.b)
+    &&Math.abs(va-a.level)<=potentialTolerance(a.level)/8
+    &&Math.abs(vb-b.level)<=potentialTolerance(b.level)/8;
+  const equal=!!(aligned&&Number.isFinite(dv)&&Math.abs(dv)<=tolerance);
+  // Raw measurements remain available for validation and diagnostics. No cached
+  // demonstration flag can authorize zero after a detach, source edit or failure.
+  return {va,vb,dv,du,work:-du,tolerance,sameLevel,equal,
+    display:equal?{dv:0,du:0,work:0}:{dv,du,work:-du}};
 }
 export function attachedContour(s,key,view){
   const held=s.attachments?.[key];if(!held)return null;
