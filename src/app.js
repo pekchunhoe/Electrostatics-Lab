@@ -2,10 +2,25 @@ import {K,EPSILON_0,G,forceOn,fieldAt,potentialAt,systemEnergy,energyChange,magn
 import {makeState,loadPreset,loadExperiment,chargePresets,motionPresets} from './presets.js';
 import {investigations,challenges,getPotential,checkAnswer} from './learning.js';
 import {draw,viewport} from './render.js';
-const names=["Coulomb’s Law",'Electric Field','Electric Potential','Charge in a Uniform Electric Field'];
+const names=['Coulomb Force','Electric Field','Electric Potential','Uniform Electric Field'];
+const headings=["Coulomb’s Law",'Fields and superposition','Potential and energy','Charge in a Uniform Electric Field'];
 const subtitles=['Explore how charges push and pull.','Measure the influence of a charge.','Explore energy, potential and equipotentials.','Follow a particle between charged plates.'];
 const states=names.map((_,i)=>makeState(i));let tab=0,raf=0,framePending=false,lastTime=0,help=false;
 const app=document.querySelector('#app'),nav=document.querySelector('.tabs');
+// Numeric tab IDs preserve the curriculum mapping and each topic's simulation state.
+nav.innerHTML=names.map((n,i)=>`<button role="tab" id="tab-${i}" aria-controls="lab-panel" aria-selected="${i===tab}" tabindex="${i===tab?0:-1}" data-tab="${i}">${n}</button>`).join('');
+function revealActiveTab(){
+  const active=document.getElementById('tab-'+tab),bar=nav.getBoundingClientRect(),item=active.getBoundingClientRect();
+  // Scroll only the horizontal tab strip; scrollIntoView could move the page vertically.
+  if(item.left<bar.left+4)nav.scrollTo({left:nav.scrollLeft+item.left-bar.left-4,behavior:'instant'});
+  else if(item.right>bar.right-4)nav.scrollTo({left:nav.scrollLeft+item.right-bar.right+4,behavior:'instant'});
+}
+function selectTab(index){
+  // Replacing the panel can temporarily shorten the document before live calculations fill it.
+  const pageY=window.scrollY;
+  tab=index;render();document.getElementById('tab-'+tab).focus({preventScroll:true});
+  window.scrollTo({top:pageY,behavior:'instant'});revealActiveTab();
+}
 const superscript=n=>String(n).split('').map(x=>({'-':'⁻','+':'','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'}[x])).join('');
 const fmt=(n,unit='')=>{if(!Number.isFinite(n))return 'Undefined';const a=Math.abs(n);let value=Number(n.toPrecision(4)).toString();if(a!==0&&(a>=1e4||a<.001)){const [base,exp]=n.toExponential(3).split('e');value=base+' × 10'+superscript(Number(exp));}return value+(unit?' '+unit:'');};
 const angle=v=>direction(v)===null?'No resultant direction':`${fmt(direction(v))}° from +x`;
@@ -17,10 +32,10 @@ function render(){
   cancelAnimationFrame(raf);states.forEach((s,i)=>{if(i!==tab)s.playing=false;});
   const s=states[tab],c=s.charges.find(x=>x.id===s.selected),open=Object.fromEntries([...app.querySelectorAll('details[id]')].map(x=>[x.id,x.open]));
   if(innerWidth>=1120&&open.calculations===undefined)open.calculations=true;
-  nav.innerHTML=names.map((n,i)=>`<button role="tab" id="tab-${i}" aria-controls="lab-panel" aria-selected="${i===tab}" aria-label="1.${i+1} ${n}" tabindex="${i===tab?0:-1}" data-tab="${i}"><span>1.${i+1}</span><span class="tab-name">${n}</span></button>`).join('');
+  for(const button of nav.children){const selected=Number(button.dataset.tab)===tab;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;}
   app.innerHTML=`<section id="help-panel" class="help card" ${help?'':'hidden'}><b>Your pocket physics laboratory</b><p>Drag a charge or probe. Select objects to edit exact values. Arrow keys move a focused object by 0.005 m; Shift gives 0.001 m. Pinch the workspace or use Zoom. The coordinate axes use metres, +x right and +y up.</p><p>Charges are point sources in ordinary 3D electrostatics. No artificial softening is applied. Diagram arrows are scaled for visibility; use Calculations for true magnitudes. Combined Learning Mode is active in every tab.</p><label class="check"><input id="theme-toggle" type="checkbox" ${document.documentElement.dataset.theme==='dark'?'checked':''}>Dark theme</label><button id="close-help">Close help</button></section>
-    <div id="lab-panel" role="tabpanel" aria-labelledby="tab-${tab}">
-    <div class="section-title"><div><span class="eyebrow">CHAPTER 01 <span class="dot">·</span> INTERACTIVE LAB</span><h2>${names[tab]}</h2><p>${subtitles[tab]}</p></div><span class="mode-badge"><i></i> Combined learning</span></div>
+    <div id="lab-panel" role="tabpanel" aria-labelledby="tab-${tab}" tabindex="0">
+    <div class="section-title"><div><span class="eyebrow">CHAPTER 01 <span class="dot">·</span> INTERACTIVE LAB</span><h2>${headings[tab]}</h2><p>${subtitles[tab]}</p></div><span class="mode-badge"><i></i> Combined learning</span></div>
     <div class="lab-grid">
       <section class="workspace card" aria-label="Interactive simulation">
         <div class="canvas-bar"><span><i class="status-dot"></i> LIVE WORKSPACE</span><button id="reset" title="Restore current preset">↺ <span>Reset</span></button></div>
@@ -145,9 +160,9 @@ function update(){
 function contributionTable(v,symbol,unit,s,target){return `<table><caption>Component values in ${unit}; r in m</caption><thead><tr><th>Source</th><th>r</th><th>${symbol}ₓ</th><th>${symbol}ᵧ</th></tr></thead><tbody>${v.contributions.map(part=>`<tr><td>q${part.id}</td><td>${fmt(part.r)}</td><td>${fmt(part.x)}</td><td>${fmt(part.y)}</td></tr>`).join('')}</tbody></table>`+v.contributions.map(part=>{const source=s.charges.find(c=>c.id===part.id);return `<p class="small">q${source.id} = ${fmt(source.q,'C')} at (${fmt(source.x)}, ${fmt(source.y)}) m.<br>${symbol}ₓ${source.id} = k${symbol==='F'?'('+fmt(target.q)+')':''}(${fmt(source.q)})(${fmt(target.x-source.x)}) / (${fmt(part.r)})³ = ${fmt(part.x,unit)}.<br>${symbol}ᵧ${source.id} uses Δy = ${fmt(target.y-source.y,'m')}, giving ${fmt(part.y,unit)}.</p>`;}).join('');}
 function updateChallenge(){const s=states[tab],q=challenges[tab][s.challenge];document.getElementById('challenge-question').textContent=q.question;document.getElementById('answer-unit').textContent=q.unit?'('+q.unit+')':'';const f=document.getElementById('feedback');if(!s.revealed){f.innerHTML='';return;}try{const answer=q.answer(s),passed=checkAnswer(s.prediction,answer);f.className=passed?'feedback success':'feedback';f.innerHTML=`<b>${passed?'Correct prediction.':'Compare your prediction.'}</b><p>Current answer: <strong>${typeof answer==='string'?answer:fmt(answer,q.unit)}</strong></p><p>${q.explain}</p><p class="small">Use the live Calculations panel for the numerical substitution and working.</p>`;}catch(e){f.className='feedback';f.textContent=e.message;}}
 function animate(now){const s=states[tab];if(!s.playing||tab!==3||document.hidden)return;if(lastTime)s.time+=Math.min((now-lastTime)/1000,.05)*.1*s.speed;lastTime=now;s.revealed=false;update();if(s.playing)raf=requestAnimationFrame(animate);}
-nav.addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;tab=Number(b.dataset.tab);render();document.getElementById('tab-'+tab).focus();});
-nav.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();tab=e.key==='Home'?0:e.key==='End'?3:(tab+(e.key==='ArrowRight'?1:3))%4;render();document.getElementById('tab-'+tab).focus();});
+nav.addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b)selectTab(Number(b.dataset.tab));});
+nav.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();selectTab(e.key==='Home'?0:e.key==='End'?3:(tab+(e.key==='ArrowRight'?1:3))%4);});
 document.getElementById('help-button').addEventListener('click',()=>{help=!help;document.getElementById('help-button').setAttribute('aria-expanded',String(help));document.getElementById('help-panel').hidden=!help;});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){states[3].playing=false;cancelAnimationFrame(raf);const b=document.getElementById('play');if(b)b.textContent='▶ Play';}});
-window.addEventListener('resize',()=>{placeQuickControls();scheduleDraw();});
+window.addEventListener('resize',()=>{placeQuickControls();scheduleDraw();revealActiveTab();});
 render();
