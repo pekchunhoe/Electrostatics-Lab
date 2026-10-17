@@ -1,5 +1,7 @@
 import {K,forceOn,magnitude,motionAt,uniformField,createSampler} from './physics.js';
 import {drawIndividualFields} from './field-vectors.js';
+import {contourGeometry} from './equipotential.js';
+import {drawSnapHighlights,drawSnapBadges} from './equipotential-render.js';
 export const colors={positive:'#cb5438',negative:'#326db0',field:'#568f89',result:'#087a6b',individual:'#aa7437',text:'#27494e',grid:'#d9e3df',purple:'#7955ad'};
 const layerCache=new WeakMap();
 export function viewport(w,h,s,tab){const scale=Math.min(w/(tab===3?.42:.60),h/(tab===3?.25:.50))*s.zoom;return {w,h,scale,toScreen:p=>({x:w/2+p.x*scale,y:h/2-p.y*scale}),toWorld:p=>({x:(p.x-w/2)/scale,y:(h/2-p.y)/scale})};}
@@ -44,24 +46,24 @@ export function draw(canvas,s,tab){
     if(c.gravity)text('mg',point.x+5,point.y+43,colors.individual,11);
     const eLabel=p({x:.125,y:.006});text(m.status,10,20);text('E',eLabel.x,eLabel.y,colors.field,12);text('Plate length = 0.300 m · fringing neglected',10,h-30);
   } else {
-    const singleSource=!s.uniform&&s.charges.filter(c=>c.q!==0).length===1?s.charges.find(c=>c.q!==0):null;
-    if(!cacheHit&&tab===2&&s.contours&&singleSource){
-      const center=p(singleSource);
-      for(const absV of [10000,20000,40000,80000,160000,320000,640000]){const radius=K*Math.abs(singleSource.q)/absV*v.scale;if(radius<20||radius>Math.hypot(w,h))continue;ctx.beginPath();ctx.arc(center.x,center.y,radius,0,Math.PI*2);ctx.strokeStyle=colors.purple;ctx.lineWidth=.9;ctx.stroke();const label={x:center.x-radius*.7,y:center.y-radius*.7};if(radius>55&&label.x>12&&label.x<w-50&&label.y>55&&label.y<h-40)text(`${Math.sign(singleSource.q)*absV/1000} kV`,label.x,label.y,colors.purple,10);}
-    }
-    if(!cacheHit&&tab===2&&s.contours&&!singleSource){
-      // Marching triangles: linear interpolation on a sampled scalar potential.
-      // A shared diagonal resolves saddle ambiguities consistently.
-      const cell=12,nx=Math.ceil(w/cell),ny=Math.ceil(h/cell),samples=[];
-      for(let j=0;j<=ny;j++){samples[j]=[];for(let i=0;i<=nx;i++){try{samples[j][i]=sampleV(v.toWorld({x:i*cell,y:j*cell}));}catch{samples[j][i]=null;}}}
-      const levels=s.uniform?[-3000,-2000,-1000,0,1000,2000,3000]:[-320000,-160000,-80000,-40000,-20000,-10000,0,10000,20000,40000,80000,160000,320000];
-      const placedLabels=[];
-      for(const level of levels){let labelled=false;ctx.beginPath();for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){
-        const z00=samples[j][i],z10=samples[j][i+1],z11=samples[j+1][i+1],z01=samples[j+1][i];
-        if(z00!==null&&z10!==null&&z11!==null&&z01!==null&&(Math.min(z00,z10,z11,z01)>level||Math.max(z00,z10,z11,z01)<level))continue;
-        const pts=[{x:i*cell,y:j*cell,z:samples[j][i]},{x:(i+1)*cell,y:j*cell,z:samples[j][i+1]},{x:(i+1)*cell,y:(j+1)*cell,z:samples[j+1][i+1]},{x:i*cell,y:(j+1)*cell,z:samples[j+1][i]}];
-        for(const ids of [[0,1,2],[0,2,3]]){const hits=[];for(let k=0;k<3;k++){const a=pts[ids[k]],b=pts[ids[(k+1)%3]];if(a.z===null||b.z===null)continue;if((a.z<level)!==(b.z<level)){const t=(level-a.z)/(b.z-a.z);hits.push({x:a.x+t*(b.x-a.x),y:a.y+t*(b.y-a.y)});}}if(hits.length===2){ctx.moveTo(hits[0].x,hits[0].y);ctx.lineTo(hits[1].x,hits[1].y);if(!labelled&&hits[0].x>20&&hits[0].x<w-75&&hits[0].y>54&&hits[0].y<h-45&&[...s.charges,s.probe,s.b].every(o=>{const a=p(o);return Math.hypot(a.x-hits[0].x,a.y-hits[0].y)>42;})&&placedLabels.every(a=>Math.hypot(a.x-hits[0].x,a.y-hits[0].y)>44)){text(`${level/1000} kV`,hits[0].x+3,hits[0].y-3,colors.purple,10);placedLabels.push(hits[0]);labelled=true;}}}
-      }ctx.strokeStyle=colors.purple;ctx.lineWidth=.9;ctx.globalAlpha=.7;ctx.stroke();ctx.globalAlpha=1;}
+    if(!cacheHit&&tab===2&&s.contours){
+      const geometry=contourGeometry(s,v),placedLabels=[];
+      for(const {level,segments,circle} of geometry.levels){
+        if(circle){
+          ctx.beginPath();ctx.arc(circle.center.x,circle.center.y,circle.radius,0,Math.PI*2);ctx.strokeStyle=colors.purple;ctx.lineWidth=.9;ctx.stroke();
+          const label={x:circle.center.x-circle.radius*.7,y:circle.center.y-circle.radius*.7};
+          if(circle.radius>55&&label.x>12&&label.x<w-50&&label.y>55&&label.y<h-40)text(level/1000+' kV',label.x,label.y,colors.purple,10);
+        }else{
+          let labelled=false;ctx.beginPath();
+          for(const {a,b} of segments){
+            ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+            if(!labelled&&a.x>20&&a.x<w-75&&a.y>54&&a.y<h-45&&[...s.charges,s.probe,s.b].every(o=>{const q=p(o);return Math.hypot(q.x-a.x,q.y-a.y)>42;})&&placedLabels.every(q=>Math.hypot(q.x-a.x,q.y-a.y)>44)){
+              text(level/1000+' kV',a.x+3,a.y-3,colors.purple,10);placedLabels.push(a);labelled=true;
+            }
+          }
+          ctx.strokeStyle=colors.purple;ctx.lineWidth=.9;ctx.globalAlpha=.7;ctx.stroke();ctx.globalAlpha=1;
+        }
+      }
     }
     const showField=tab===1||(tab===2&&s.overlay);
     if(!cacheHit&&showField&&s.grid){for(let y=30;y<h-20;y+=40)for(let x=25;x<w-15;x+=40){const world=v.toWorld({x,y});if(s.charges.some(c=>Math.hypot(c.x-world.x,c.y-world.y)*v.scale<28)&&!s.uniform)continue;arrow(world,s.uniform?{x:0,y:s.uniformE}:safeField(world),colors.field,17,1);}}
@@ -84,6 +86,7 @@ export function draw(canvas,s,tab){
       }
     }
     if(!cacheHit&&(tab===1||tab===2)){const copy=document.createElement('canvas');copy.width=canvas.width;copy.height=canvas.height;copy.getContext('2d').drawImage(canvas,0,0);layerCache.set(canvas,{key:layerKey,canvas:copy});}
+    if(tab===2)drawSnapHighlights(ctx,s,v,dark);
     if(tab===0){try{
       const target=s.charges.find(c=>c.id===s.selected),f=forceOn(s.charges,s.selected),max=Math.max(magnitude(f),...f.contributions.map(magnitude),1e-15),origin=s.fbd?{x:0,y:0}:target;
       for(const part of f.contributions){const other=s.charges.find(c=>c.id===part.id),a=p(target),b=p(other);line(a,b,colors.individual,.8,[3,4]);const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;text(`${part.r.toFixed(3)} m`,mx+5,my-7);arrow(origin,part,colors.individual,75*magnitude(part)/max,2);}
@@ -95,6 +98,7 @@ export function draw(canvas,s,tab){
     else if(tab===1||tab===2){const e=s.uniform?{x:0,y:s.uniformE}:safeField(s.probe);if(tab===1||s.overlay)arrow(s.probe,e,colors.result,55,3);}
     if(!(tab===2&&s.uniform))for(const charge of s.charges){const a=p(charge);if(charge.id===s.selected){ctx.beginPath();ctx.arc(a.x,a.y,21,0,Math.PI*2);ctx.strokeStyle=colors.result;ctx.lineWidth=2;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);}ctx.beginPath();ctx.arc(a.x,a.y,14,0,Math.PI*2);ctx.fillStyle=charge.q<0?colors.negative:colors.positive;ctx.fill();text(charge.q===0?'0':charge.q>0?'+':'−',a.x-6,a.y+6,'#fff',21);text(`q${charge.id}`,a.x+18,a.y-13);}
     if(tab===1||tab===2)for(const [label,world] of tab===2?[['A',s.probe],['B',s.b]]:[['A',s.probe]]){const a=p(world);ctx.beginPath();ctx.arc(a.x,a.y,10,0,Math.PI*2);ctx.fillStyle=label==='A'?colors.result:colors.purple;ctx.fill();text(label,a.x-4,a.y+4,'#fff',11);line({x:a.x-15,y:a.y},{x:a.x+15,y:a.y},label==='A'?colors.result:colors.purple,1);line({x:a.x,y:a.y-15},{x:a.x,y:a.y+15},label==='A'?colors.result:colors.purple,1);}
+    if(tab===2)drawSnapBadges(ctx,s,v,dark);
     text(tab===0?'Drag a charge · select the force target':tab===1?'Drag sources or probe A':'Drag probes A and B to compare potential',10,20);
   }
   const scaleLength=.05,sy=h-13;line({x:12,y:sy},{x:12+scaleLength*v.scale,y:sy},dark?'#c2d4d0':colors.text,2);text('0.05 m',18+scaleLength*v.scale,sy+4);

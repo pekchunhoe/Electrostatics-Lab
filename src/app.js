@@ -3,11 +3,14 @@ import {makeState,loadPreset,loadExperiment,chargePresets,motionPresets} from '.
 import {investigations,challenges,getPotential,checkAnswer} from './learning.js';
 import {draw,viewport} from './render.js';
 import {individualFields,fieldLabel} from './field-vectors.js';
+import {initializeSnapping,setSnapping,clearAttachments,releaseProbe,movePotentialProbe,reconcileAttachments,validatePotentialProbes,samePotential,potentialComparison} from './equipotential.js';
+import {snapControls,updateSnapControls,movementWorking,equipotentialActivity} from './equipotential-ui.js';
 const names=['Coulomb Force','Electric Field','Electric Potential','Uniform Electric Field'];
 const headings=["Coulomb’s Law",'Fields and superposition','Potential and energy','Charge in a Uniform Electric Field'];
 const subtitles=['Explore how charges push and pull.','Measure the influence of a charge.','Explore energy, potential and equipotentials.','Follow a particle between charged plates.'];
 const states=names.map((_,i)=>makeState(i));let tab=0,raf=0,framePending=false,lastTime=0,help=false;
 states[1].individualFields=false;states[1].fieldFocus='all';
+initializeSnapping(states[2]);
 const app=document.querySelector('#app'),nav=document.querySelector('.tabs');
 // Numeric tab IDs preserve the curriculum mapping and each topic's simulation state.
 nav.innerHTML=names.map((n,i)=>`<button role="tab" id="tab-${i}" aria-controls="lab-panel" aria-selected="${i===tab}" tabindex="${i===tab?0:-1}" data-tab="${i}">${n}</button>`).join('');
@@ -58,6 +61,7 @@ function fieldExplanation(s,e){
 function render(){
   cancelAnimationFrame(raf);states.forEach((s,i)=>{if(i!==tab)s.playing=false;});
   const s=states[tab],c=s.charges.find(x=>x.id===s.selected),open=Object.fromEntries([...app.querySelectorAll('details[id]')].map(x=>[x.id,x.open]));
+  if(tab===2&&open['equipotential-working']!==undefined)s.equipotentialWorkingOpen=open['equipotential-working'];
   if(innerWidth>=1120&&open.calculations===undefined)open.calculations=true;
   for(const button of nav.children){const selected=Number(button.dataset.tab)===tab;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;}
   app.innerHTML=`<section id="help-panel" class="help card" ${help?'':'hidden'}><b>Your pocket physics laboratory</b><p>Drag a charge or probe. Select objects to edit exact values. Arrow keys move a focused object by 0.005 m; Shift gives 0.001 m. Pinch the workspace or use Zoom. The coordinate axes use metres, +x right and +y up.</p><p>Charges are point sources in ordinary 3D electrostatics. No artificial softening is applied. Diagram arrows are scaled for visibility; use Calculations for true magnitudes. Combined Learning Mode is active in every tab.</p><label class="check"><input id="theme-toggle" type="checkbox" ${document.documentElement.dataset.theme==='dark'?'checked':''}>Dark theme</label><button id="close-help">Close help</button></section>
@@ -68,7 +72,7 @@ function render(){
         <div class="canvas-bar"><span><i class="status-dot"></i> LIVE WORKSPACE</span><button id="reset" title="Restore current preset">↺ <span>Reset</span></button></div>
         <div class="canvas-wrap"><canvas id="scene" aria-label="${names[tab]} diagram; use the object buttons or exact coordinate controls to move charges and probes."></canvas><div id="object-targets"></div></div>
         <div class="legend">${tab===0?'<span class="positive">● + charge</span><span class="negative">● − charge</span><span class="result">➜ resultant</span><span>➜ individual</span>':tab===3?'<span class="result">➜ electric force</span><span>➜ gravity (if on)</span><span>⋯ trajectory</span>':'<span class="positive">● + source</span><span class="negative">● − source</span><span class="result">⊕ probe A</span>'+(tab===2?'<span class="purple">⊕ probe B</span>':'')}</div>
-        <div id="live-strip" class="live-strip" role="status" aria-live="polite" aria-atomic="true"></div><div id="quick-controls"></div>${tab===1?fieldControls(s):''}
+        <div id="live-strip" class="live-strip" role="status" aria-live="polite" aria-atomic="true"></div><div id="quick-controls"></div>${tab===1?fieldControls(s):tab===2?snapControls(s):''}
         <p class="canvas-note">${tab===2?'Contours in volts · 2D cross-sections of 3D equipotential surfaces.':'Arrow lengths are scaled for visibility; numerical magnitudes are exact.'}</p>
       </section>
       <aside class="controls card" aria-label="Simulation controls"><div class="panel-heading"><h3>Experiment controls</h3><span>ADJUST & OBSERVE</span></div>
@@ -81,7 +85,7 @@ function render(){
       ${tab===2?`<label class="select-label" for="potential-mode">Potential example<select id="potential-mode"><option value="point" ${!s.uniform?'selected':''}>Point charges</option><option value="uniform" ${s.uniform?'selected':''}>Ideal uniform field</option></select></label>${num('uniform-e','Uniform Eᵧ (V/m)',s.uniformE,-50000,50000)}`:''}
       <fieldset><legend>Diagram layers</legend>${tab===0?check('components','Vector components',s)+check('fbd','Free-body diagram at origin',s):tab===1?check('lines','Field lines',s)+check('arrows','Field-line direction arrows',s)+check('grid','Vector grid',s):tab===2?check('contours','Equipotential contours',s)+check('heat','Potential colour map',s)+check('overlay','Electric field at A',s)+check('grid','Field vector grid (with overlay)',s):check('trace','Trajectory trace',s)}</fieldset>
       <label class="range-label" for="zoom">Zoom <output id="zoom-output">${s.zoom.toFixed(1)}×</output><input id="zoom" type="range" min=".7" max="2" step=".1" value="${s.zoom}"></label></div></details><p id="input-error" class="error" role="alert"></p>
-      <details id="guided" ${open.guided?'open':''}><summary>Guided investigations <span class="count">3</span></summary><div class="detail-body"><label for="guide">Choose an investigation</label><select id="guide">${investigations[tab].map((g,i)=>`<option value="${i}" ${s.guide===i?'selected':''}>${g[0]}</option>`).join('')}</select><p id="guide-text">${investigations[tab][s.guide][2]}</p><p class="workflow">Predict → Simulate → Observe → Explain</p><button id="load-guide">Load investigation</button><div id="zero-status"></div></div></details>
+      <details id="guided" ${open.guided?'open':''}><summary>Guided investigations <span class="count">3</span></summary><div class="detail-body"><label for="guide">Choose an investigation</label><select id="guide">${investigations[tab].map((g,i)=>`<option value="${i}" ${s.guide===i?'selected':''}>${g[0]}</option>`).join('')}</select><p id="guide-text">${investigations[tab][s.guide][2]}</p><p class="workflow">Predict → Simulate → Observe → Explain</p><button id="load-guide">Load investigation</button><div id="zero-status"></div>${tab===2?equipotentialActivity(open):''}</div></details>
       </aside>
       <aside class="learning" aria-label="Calculations and challenges"><details id="calculations" class="card" ${open.calculations?'open':''}><summary>Calculations <span class="summary-tag">LIVE</span></summary><div id="calculation-body" class="detail-body"></div></details>
       ${tab===1?`<details id="individual-field-panel" class="card field-breakdown" ${s.individualFields?'':'hidden'} ${open['individual-field-panel']?'open':''}><summary>Individual Electric Fields</summary><div id="individual-field-body" class="detail-body"></div></details>`:''}
@@ -96,13 +100,13 @@ function placeQuickControls(){const el=document.getElementById('primary-adjustme
 function motionSettings(s){const m=s.motion;return `<div class="number-grid">${num('m-voltage','Vbottom − Vtop (V)',m.voltage,-2000,2000)}${num('m-d','Separation (m)',m.d,.005,.2)}${num('m-q','Particle q (nC)',m.q*1e9,-100,100)}${num('m-mass','Mass (mg)',m.mass*1e6,.001,1000)}${num('m-x0','Initial x (m)',m.x0,-.2,.2)}${num('m-y0','Initial y (m)',m.y0,-.09,.09)}${num('m-vx','Initial vₓ (m/s)',m.vx,-10,10)}${num('m-vy','Initial vᵧ (m/s)',m.vy,-10,10)}</div><label class="check"><input id="gravity" type="checkbox" ${m.gravity?'checked':''}>Include gravity (−9.81 m/s²)</label><p class="small">Edit vₓ and vᵧ for any launch direction. Parameter edits reset the clock. +y points upward. Plates absorb particles on impact.</p>`;}
 function bind(){
   const s=states[tab];const on=(id,event,fn)=>document.getElementById(id)?.addEventListener(event,fn);
-  on('preset','change',e=>{tab===3?loadExperiment(s,e.target.value):loadPreset(s,e.target.value);s.revealed=false;render();});
+  on('preset','change',e=>{if(tab===2){clearAttachments(s);s.samePotentialDemo=false;}tab===3?loadExperiment(s,e.target.value):loadPreset(s,e.target.value);s.revealed=false;render();});
   on('selected','change',e=>{s.selected=e.target.value;render();});
-  on('reset','click',()=>{tab===3?loadExperiment(s,s.experiment):loadPreset(s,s.preset);s.zoom=1;s.revealed=false;render();});
-  on('add','click',()=>{if(s.charges.length>=4)return;const id=String([1,2,3,4].find(x=>!s.charges.some(c=>c.id===String(x))));const pos=[{x:0,y:.15},{x:0,y:-.15},{x:.2,y:.1},{x:-.2,y:-.1}].find(p=>s.charges.every(c=>Math.hypot(c.x-p.x,c.y-p.y)>.025));s.charges.push({id,q:1e-6,...pos});s.selected=id;render();});
+  on('reset','click',()=>{if(tab===2){clearAttachments(s);s.samePotentialDemo=false;}tab===3?loadExperiment(s,s.experiment):loadPreset(s,s.preset);s.zoom=1;s.revealed=false;render();});
+  on('add','click',()=>{if(s.charges.length>=4)return;const id=String([1,2,3,4].find(x=>!s.charges.some(c=>c.id===String(x))));const positions=[{x:0,y:.15},{x:0,y:-.15},{x:.2,y:.1},{x:-.2,y:-.1}];if(tab===2){positions.push({x:-.18,y:.16},{x:.18,y:-.16},{x:0,y:.2},{x:0,y:-.2});for(const x of [-.2,-.1,0,.1,.2])for(const y of [-.18,-.09,0,.09,.18])positions.push({x,y});}const pos=positions.find(p=>s.charges.every(c=>Math.hypot(c.x-p.x,c.y-p.y)>.025)&&(tab!==2||s.uniform||[s.probe,s.b].every(probe=>Math.hypot(probe.x-p.x,probe.y-p.y)>.025)));s.charges.push({id,q:1e-6,...pos});s.selected=id;render();});
   on('remove','click',()=>{if(s.charges.length<=1)return;s.charges=s.charges.filter(c=>c.id!==s.selected);s.selected=s.charges[0].id;render();});
   on('clear','click',()=>{s.charges=s.charges.filter(c=>c.id===s.selected);render();});
-  on('reset-selected','click',()=>{const original=chargePresets[s.preset].charges.find(c=>c.id===s.selected);if(!original){showError('This source was added after the preset. Use Reset to restore the arrangement.');return;}const clone=structuredClone(s.charges);Object.assign(clone.find(c=>c.id===s.selected),original);try{validateCharges(clone);s.charges=clone;render();}catch(e){showError(e.message);}});
+  on('reset-selected','click',()=>{const original=chargePresets[s.preset].charges.find(c=>c.id===s.selected);if(!original){showError('This source was added after the preset. Use Reset to restore the arrangement.');return;}const clone=structuredClone(s.charges);Object.assign(clone.find(c=>c.id===s.selected),original);try{validateCharges(clone);if(tab===2)validatePotentialProbes({...s,charges:clone});s.charges=clone;render();}catch(e){showError(e.message);}});
   for(const id of ['charge-range','charge-number','charge-x','charge-y','probe-x','probe-y','b-x','b-y','test-charge','uniform-e',...['voltage','d','q','mass','x0','y0','vx','vy'].map(x=>'m-'+x)]){
     on(id,id==='charge-range'?'input':'change',e=>{
       const input=e.target,n=Number(input.value),old=structuredClone(s);
@@ -116,21 +120,21 @@ function bind(){
         else if(id==='test-charge')s.testQ=n*1e-9;
         else if(id==='uniform-e')s.uniformE=n;
         else if(id.startsWith('m-')){const key=id.slice(2);s.motion[key]=n*(key==='q'?1e-9:key==='mass'?1e-6:1);validateMotion(s.motion);s.time=0;s.playing=false;document.getElementById('play').textContent='▶ Play';cancelAnimationFrame(raf);}
-        validateCharges(s.charges);showError('');input.removeAttribute('aria-invalid');syncControls();s.revealed=false;update();
+        validateCharges(s.charges);if(tab===2){if(id.startsWith('probe-')||id.startsWith('b-'))releaseProbe(s,id.startsWith('probe-')?'probe':'b',false);reconcileAttachments(s,potentialView());validatePotentialProbes(s);}showError('');input.removeAttribute('aria-invalid');syncControls();s.revealed=false;update();
       }catch(err){Object.assign(s,old);showError(err.message);input.setAttribute('aria-invalid','true');}
     });
   }
   document.querySelectorAll('[data-toggle]').forEach(el=>el.addEventListener('change',()=>{s[el.dataset.toggle]=el.checked;update();}));
   on('individual-fields','change',e=>{s.individualFields=e.target.checked;update();});
   on('field-vector-key','click',e=>{const button=e.target.closest('[data-field-vector]');if(!button)return;s.fieldFocus=button.dataset.fieldVector;for(const el of button.parentElement.children)el.setAttribute('aria-pressed',String(el===button));scheduleDraw();});
-  on('potential-mode','change',e=>{s.uniform=e.target.value==='uniform';s.revealed=false;update();});
+  on('potential-mode','change',e=>{const previous=s.uniform;s.uniform=e.target.value==='uniform';try{validatePotentialProbes(s);}catch(error){s.uniform=previous;e.target.value=previous?'uniform':'point';showError(error.message);return;}clearAttachments(s,'Potential model changed. Probes released.');s.revealed=false;update();});
   on('gravity','change',e=>{s.motion.gravity=e.target.checked;s.time=0;s.playing=false;render();});
   on('zoom','input',e=>{s.zoom=Number(e.target.value);document.getElementById('zoom-output').textContent=s.zoom.toFixed(1)+'×';scheduleDraw();});
   on('speed','change',e=>s.speed=Number(e.target.value));
   on('play','click',()=>{s.playing=!s.playing;document.getElementById('play').textContent=s.playing?'Ⅱ Pause':'▶ Play';lastTime=0;if(s.playing)raf=requestAnimationFrame(animate);else cancelAnimationFrame(raf);});
   on('step','click',()=>{s.playing=false;cancelAnimationFrame(raf);document.getElementById('play').textContent='▶ Play';s.time+=.01;s.revealed=false;update();});
   on('guide','change',e=>{s.guide=Number(e.target.value);document.getElementById('guide-text').textContent=investigations[tab][s.guide][2];update();});
-  on('load-guide','click',()=>{const key=investigations[tab][s.guide][1];if(tab===3)loadExperiment(s,key);else if(key==='uniform'){s.uniform=true;s.probe={x:0,y:0};s.b={x:0,y:.1};}else loadPreset(s,key);s.revealed=false;render();});
+  on('load-guide','click',()=>{if(tab===2){clearAttachments(s);s.samePotentialDemo=false;}const key=investigations[tab][s.guide][1];if(tab===3)loadExperiment(s,key);else if(key==='uniform'){s.uniform=true;s.probe={x:0,y:0};s.b={x:0,y:.1};}else loadPreset(s,key);s.revealed=false;render();});
   on('challenge-select','change',e=>{s.challenge=Number(e.target.value);s.revealed=false;s.prediction='';document.getElementById('prediction').value='';document.getElementById('hint-text').hidden=true;updateChallenge();});
   on('prediction','input',e=>{s.prediction=e.target.value;s.revealed=false;document.getElementById('feedback').innerHTML='';});
   on('check-answer','click',()=>{s.revealed=true;updateChallenge();});
@@ -139,23 +143,41 @@ function bind(){
   document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>{document.getElementById(b.dataset.close).open=false;document.querySelector(`[data-open="${b.dataset.close}"]`)?.focus();}));
   on('theme-toggle','change',e=>{document.documentElement.dataset.theme=e.target.checked?'dark':'light';scheduleDraw();});
   on('close-help','click',()=>{help=false;document.getElementById('help-panel').hidden=true;document.getElementById('help-button').setAttribute('aria-expanded','false');});
+  on('snap-equipotential','change',e=>{setSnapping(s,e.target.checked);update();});
+  on('detach-a','click',()=>{releaseProbe(s,'probe');update();});
+  on('detach-b','click',()=>{releaseProbe(s,'b');update();});
+  on('same-potential','click',()=>{const result=samePotential(s,potentialView());if(!result.ok)s.snapMessage=result.message;else document.getElementById('calculations').open=true;update();syncControls();});
+  on('start-zero-work','click',()=>{loadPreset(s,'equal');clearAttachments(s);s.samePotentialDemo=false;setSnapping(s,true);render();});
   setupPointers();
 }
 function showError(message){const e=document.getElementById('input-error');if(e)e.textContent=message;}
-function syncControls(){const s=states[tab],c=s.charges.find(c=>c.id===s.selected);for(const [id,value] of Object.entries({'charge-range':c.q*1e6,'charge-number':c.q*1e6,'charge-x':c.x,'charge-y':c.y,'probe-x':s.probe.x,'probe-y':s.probe.y,'b-x':s.b.x,'b-y':s.b.y})){const el=document.getElementById(id);if(el&&document.activeElement!==el)el.value=Number(value.toPrecision(8));}const out=document.getElementById('charge-output');if(out)out.textContent=fmt(c.q*1e6)+' μC';}
+function syncControls(){const s=states[tab],c=s.charges.find(c=>c.id===s.selected);for(const [id,value] of Object.entries({'charge-range':c.q*1e6,'charge-number':c.q*1e6,'charge-x':c.x,'charge-y':c.y,'probe-x':s.probe.x,'probe-y':s.probe.y,'b-x':s.b.x,'b-y':s.b.y})){const el=document.getElementById(id);if(el&&document.activeElement!==el)el.value=tab===2&&/^(probe|b|charge)-(x|y)$/.test(id)?value:Number(value.toPrecision(8));}const out=document.getElementById('charge-output');if(out)out.textContent=fmt(c.q*1e6)+' μC';}
 function scheduleDraw(){if(framePending)return;framePending=true;requestAnimationFrame(()=>{framePending=false;drawScene();});}
 function drawScene(){const canvas=document.getElementById('scene');if(!canvas)return;const objects=draw(canvas,states[tab],tab),host=document.getElementById('object-targets');
   // Retain focused buttons while moving them; canvas provides the visible symbols.
   const keys=new Set(objects.map(o=>o.key));for(const el of host.children)if(!keys.has(el.dataset.key))el.remove();
   for(const o of objects){let el=[...host.children].find(x=>x.dataset.key===o.key);if(!el){el=document.createElement('button');el.className='object-target';el.dataset.key=o.key;el.addEventListener('click',()=>{if(!['probe','b'].includes(o.key)&&states[tab].selected!==o.key){states[tab].selected=o.key;render();}});el.addEventListener('keydown',e=>{const d={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,1],ArrowDown:[0,-1]}[e.key];if(!d)return;e.preventDefault();const s=states[tab],point=['probe','b'].includes(o.key)?s[o.key]:s.charges.find(c=>c.id===o.key);movePoint(point,point.x+d[0]*(e.shiftKey?.001:.005),point.y+d[1]*(e.shiftKey?.001:.005));});host.append(el);}el.style.left=o.x+'px';el.style.top=o.y+'px';el.setAttribute('aria-label',`${o.label}, x ${o.point.x.toFixed(3)} metres, y ${o.point.y.toFixed(3)} metres. Use arrow keys to move.`);}
 }
-function movePoint(point,x,y){const s=states[tab],old={x:point.x,y:point.y};point.x=Math.max(-.25,Math.min(.25,x));point.y=Math.max(-.22,Math.min(.22,y));try{validateCharges(s.charges);showError('');s.revealed=false;syncControls();update();}catch(e){Object.assign(point,old);showError(e.message);}}
+function potentialView(){const rect=document.getElementById('scene').getBoundingClientRect();return viewport(rect.width,rect.height,states[2],2);}
+function movePoint(point,x,y){
+  const s=states[tab],old={x:point.x,y:point.y},target={x:Math.max(-.25,Math.min(.25,x)),y:Math.max(-.22,Math.min(.22,y))};
+  const saved=tab===2?structuredClone({probe:s.probe,b:s.b,attachments:s.attachments,snapSuppressed:s.snapSuppressed,snapMessage:s.snapMessage}):null;
+  try{
+    const key=tab===2?(point===s.probe?'probe':point===s.b?'b':null):null;
+    if(key){if(!movePotentialProbe(s,key,target,potentialView()))throw new RangeError('Keep probes clear of point charges.');}
+    else Object.assign(point,target);
+    validateCharges(s.charges);
+    if(tab===2){reconcileAttachments(s,potentialView());validatePotentialProbes(s);}
+    showError('');s.revealed=false;syncControls();update();
+  }catch(e){Object.assign(point,old);if(saved){Object.assign(s.probe,saved.probe);Object.assign(s.b,saved.b);s.attachments=saved.attachments;s.snapSuppressed=saved.snapSuppressed;s.snapMessage=saved.snapMessage;}showError(e.message);}
+}
 function setupPointers(){const wrap=document.querySelector('.canvas-wrap'),canvas=document.getElementById('scene'),s=states[tab],contacts=new Map();let dragged=null,offset={x:0,y:0},pinch=null;
   const local=e=>{const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};};
-  const view=()=>viewport(canvas.clientWidth,canvas.clientHeight,s,tab);
+  const view=()=>tab===2?potentialView():viewport(canvas.clientWidth,canvas.clientHeight,s,tab);
   wrap.addEventListener('pointerdown',e=>{if(tab===3)return;const p=local(e);contacts.set(e.pointerId,p);wrap.setPointerCapture(e.pointerId);if(contacts.size===2){const [a,b]=[...contacts.values()];pinch={distance:Math.hypot(a.x-b.x,a.y-b.y),zoom:s.zoom};dragged=null;return;}
     const key=e.target.closest('[data-key]')?.dataset.key;let objects=[...s.charges.map(c=>({key:c.id,point:c})),...(tab===1||tab===2?[{key:'probe',point:s.probe}]:[]),...(tab===2?[{key:'b',point:s.b}]:[])];if(tab===2&&s.uniform)objects=objects.filter(o=>['probe','b'].includes(o.key));
-    const chosen=key?objects.find(o=>o.key===key):objects.reverse().find(o=>{const a=view().toScreen(o.point);return Math.hypot(a.x-p.x,a.y-p.y)<24;});
+    const nearest=tab===2?objects.map(o=>({...o,distance:Math.hypot(view().toScreen(o.point).x-p.x,view().toScreen(o.point).y-p.y)})).filter(o=>o.distance<24).sort((a,b)=>a.distance-b.distance)[0]:null;
+    const chosen=nearest??(key?objects.find(o=>o.key===key):objects.reverse().find(o=>{const a=view().toScreen(o.point);return Math.hypot(a.x-p.x,a.y-p.y)<24;}));
     if(chosen){dragged=chosen.point;const world=view().toWorld(p);offset={x:dragged.x-world.x,y:dragged.y-world.y};if(!['probe','b'].includes(chosen.key)){s.selected=chosen.key;const select=document.getElementById('selected');if(select)select.value=chosen.key;syncControls();scheduleDraw();}}
   });
   wrap.addEventListener('pointermove',e=>{if(!contacts.has(e.pointerId))return;contacts.set(e.pointerId,local(e));if(contacts.size===2&&pinch){const [a,b]=[...contacts.values()];s.zoom=Math.max(.7,Math.min(2,pinch.zoom*Math.hypot(a.x-b.x,a.y-b.y)/pinch.distance));document.getElementById('zoom').value=s.zoom;document.getElementById('zoom-output').textContent=s.zoom.toFixed(1)+'×';scheduleDraw();return;}if(dragged){const world=view().toWorld(local(e));movePoint(dragged,world.x+offset.x,world.y+offset.y);}});
@@ -163,6 +185,7 @@ function setupPointers(){const wrap=document.querySelector('.canvas-wrap'),canva
 }
 function update(){
   const s=states[tab],strip=document.getElementById('live-strip'),body=document.getElementById('calculation-body');
+  if(tab===2){if(reconcileAttachments(s,potentialView()))syncControls();updateSnapControls(s,fmt);}
   const selected=document.getElementById('selected');if(selected)for(const option of selected.options){const source=s.charges.find(c=>c.id===option.value);option.textContent=`q${source.id} · ${fmt(source.q*1e6)} μC`;}
   try{
     let html='';
@@ -179,6 +202,8 @@ function update(){
     }else if(tab===2){const va=getPotential(s,s.probe),vb=getPotential(s,s.b),dv=vb-va,du=energyChange(s.testQ,dv),e=s.uniform?{x:0,y:s.uniformE}:fieldAt(s.charges,s.probe);
       strip.innerHTML=stat('Potential at A',fmt(va,'V'))+stat('B − A',fmt(dv,'V'));
       html=`<h4>1 · Given quantities</h4><p>A = (${fmt(s.probe.x)}, ${fmt(s.probe.y)}) m; B = (${fmt(s.b.x)}, ${fmt(s.b.y)}) m; test q = ${fmt(s.testQ,'C')}.</p>`+equation('2 · Potential and work','V = W_ext / q₀<br>V = Σ kqⱼ/rⱼ<br>ΔV = V_B − V_A',s.uniform?`Uniform field: V(y) = −Eᵧy with V(0) = 0; Eᵧ = ${fmt(s.uniformE,'V/m')}. ΔV = −Eᵧ(yB − yA).`:'Point-source reference: V = 0 at infinity. Potential is the quasistatic external work per unit positive test charge brought from the reference.')+`<h4>3 · Substitution</h4>${s.uniform?`<p>V_A = −(${fmt(s.uniformE)})(${fmt(s.probe.y)}) V<br>V_B = −(${fmt(s.uniformE)})(${fmt(s.b.y)}) V</p>`:`<p>V_A = ${s.charges.map(c=>c.q===0?'0':`k(${fmt(c.q)})/${fmt(Math.hypot(s.probe.x-c.x,s.probe.y-c.y))}`).join(' + ')} V</p>`}<h4>4 · Calculation</h4><p>V_A = ${fmt(va,'V')}<br>V_B = ${fmt(vb,'V')}<br>ΔV = ${fmt(vb)} − (${fmt(va)}) = <b>${fmt(dv,'V')}</b></p>`+equation('5 · Energy and work','ΔU = qΔV = W_ext<br>W_field = −qΔV',`ΔU = (${fmt(s.testQ)})(${fmt(dv)}) = <b>${fmt(du,'J')}</b><br>W_field = ${fmt(-du,'J')}. External-work signs assume a quasistatic move.`)+`<h4>Field versus potential</h4><p>|E_A| = ${fmt(magnitude(e),'N/C')}; V_A = ${fmt(va,'V')}. Field vectors may cancel while scalar potentials add.</p><h4>System energy (maximum 3 sources)</h4>`+(s.uniform?'<p>Not applicable to the ideal uniform-field example.</p>':s.charges.length>3?'<p>Use up to three charges for this syllabus calculation. The potential map still supports four.</p>':`<div class="equation">U = Σᵢ&lt;ⱼ kqᵢqⱼ/rᵢⱼ</div><p>${s.charges.flatMap((c,i)=>s.charges.slice(0,i).map(d=>`U${d.id}${c.id} = k(${fmt(c.q)})(${fmt(d.q)})/${fmt(Math.hypot(c.x-d.x,c.y-d.y))} = ${fmt(K*c.q*d.q/Math.hypot(c.x-d.x,c.y-d.y),'J')}`)).join('<br>')||'A single source has no distinct pairs.'}<br><b>U = ${fmt(systemEnergy(s.charges),'J')}</b></p>`)+`<p class="small">Equipotentials connect equal V, so work along one is zero. Isolated-charge circles are cross-sections of spheres; uniform-field lines are cross-sections of parallel planes, perpendicular to E. Sampled contours use 12 px cells.</p>`;
+      const workingOpen=body.querySelector('#equipotential-working')?.open??s.equipotentialWorkingOpen??false;
+      html+=movementWorking(s,potentialComparison(s),fmt,workingOpen);
     }else{const c=s.motion,m=motionAt(c,s.time),initial=motionAt(c,0),ey=uniformField(c.voltage,c.d),fe=c.q*m.ey,fg=c.gravity?-c.mass*G:0;
       if(m.status==='Plate impact'){s.playing=false;cancelAnimationFrame(raf);document.getElementById('play').textContent='▶ Play';s.time=m.time;}
       strip.innerHTML=stat('Time',fmt(m.time,'s'))+stat('Acceleration aᵧ',fmt(m.ay,'m/s²'));
