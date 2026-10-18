@@ -1,5 +1,5 @@
-import {motionPlateControls,motionSettings,motionStatusMarkup,updateMotionStatus,motionWorking,motionLegend,syncMotionControls} from './motion-ui.js';
-import {resetMotionClock,restoreMotionStart,orientMotion,rebalanceMotion,advanceMotion} from './motion-state.js';
+import {balancingControls,motionPlateControls,motionSettings,motionStatusMarkup,updateMotionStatus,motionWorking,motionLegend,syncMotionControls} from './motion-ui.js';
+import {selectBalancingForce,changeMagneticField,motionClockRate,resetMotionClock,restoreMotionStart,orientMotion,rebalanceMotion,advanceMotion} from './motion-state.js';
 import {motionGeometry} from './physics.js';
 import {isPlates,plateModel,createPotentialModels,updatePlates,plateDefaults} from './parallel-plates.js';
 import {potentialLayers,potentialLegend,plateChallenges,plateControls,plateWorking,fieldEquipotentialActivity} from './potential-model-ui.js';
@@ -85,7 +85,7 @@ function render(){
       <aside class="controls card" aria-label="Simulation controls"><div class="panel-heading"><h3>Experiment controls</h3><span>ADJUST & OBSERVE</span></div>
       ${tab===2&&isPlates(s)?plateControls(s,num,fmt):`<label class="select-label" for="preset">${tab===3?'Experiment':'Arrangement'}<select id="preset">${options(tab===3?motionPresets:chargePresets,tab===3?s.experiment:s.preset)}</select></label>`}
       ${tab===2&&isPlates(s)?'':tab===3?`<div class="playback"><button id="play" class="primary">${s.playing?'Ⅱ Pause':'▶ Play'}</button><button id="step">Step +0.01 s</button></div><label class="select-label" for="speed">Playback speed<select id="speed"><option value=".25" ${s.speed===.25?'selected':''}>0.25× · slow</option><option value="1" ${s.speed===1?'selected':''}>1×</option><option value="2" ${s.speed===2?'selected':''}>2×</option></select></label>`:`<label class="select-label" for="selected">Selected ${tab===0?'force target':'source'}<select id="selected">${s.charges.map(x=>`<option value="${x.id}" ${s.selected===x.id?'selected':''}>q${x.id} · ${fmt(x.q*1e6)} μC</option>`).join('')}</select></label><label class="range-label" for="charge-range">Charge <output id="charge-output">${fmt(c.q*1e6)} μC</output><input id="charge-range" type="range" min="-5" max="5" step="0.1" value="${c.q*1e6}"></label><div class="button-row"><button id="add" ${s.charges.length>=4?'disabled':''}>＋ Add charge</button><button id="remove" ${s.charges.length<=1?'disabled':''}>− Remove</button></div>`}
-      ${tab===3?motionPlateControls(s,num):''}<div id="primary-control-home"></div><div class="mobile-actions"><button data-open="calculations">Calculations</button><button class="accent" data-open="challenge-panel">Challenge ↗</button></div>
+      ${tab===3?balancingControls(s,num)+motionPlateControls(s,num):''}<div id="primary-control-home"></div><div class="mobile-actions"><button data-open="calculations">Calculations</button><button class="accent" data-open="challenge-panel">Challenge ↗</button></div>
       <details id="settings" ${open.settings?'open':''}><summary>Settings & precise values</summary><div class="detail-body">
       ${tab===2&&isPlates(s)?'':tab===3?motionSettings(s,num):`<div class="number-grid">${num('charge-number','Charge (μC)',c.q*1e6,-5,5)}${num('charge-x','Source x (m)',c.x,-.25,.25)}${num('charge-y','Source y (m)',c.y,-.22,.22)}</div><button id="reset-selected">Reset selected source</button><button id="clear">Keep selected source only</button>`}
       ${tab===1||tab===2?`<div class="number-grid">${num('probe-x','Probe A x (m)',s.probe.x,-.25,.25)}${num('probe-y','Probe A y (m)',s.probe.y,-.22,.22)}${tab===2?num('b-x','Probe B x (m)',s.b.x,-.25,.25)+num('b-y','Probe B y (m)',s.b.y,-.22,.22):''}${num('test-charge','Test charge (nC)',s.testQ*1e9,-100,100)}</div>`:''}
@@ -101,7 +101,7 @@ function render(){
     </div></div>`;
   const primary=tab===2&&isPlates(s)?null:document.querySelector('.controls '+(tab===3?'.playback':'.range-label'));
   if(primary){primary.id='primary-adjustment';placeQuickControls();}
-  bind();update();
+  bind();if(tab===3)syncMotionControls(s);update();
 }
 function placeQuickControls(){const el=document.getElementById('primary-adjustment');if(el)document.getElementById(innerWidth<1120?'quick-controls':'primary-control-home').append(el);}
 function bind(){
@@ -124,7 +124,7 @@ function bind(){
   on('remove','click',()=>{if(s.charges.length<=1)return;s.charges=s.charges.filter(c=>c.id!==s.selected);s.selected=s.charges[0].id;render();});
   on('clear','click',()=>{s.charges=s.charges.filter(c=>c.id===s.selected);render();});
   on('reset-selected','click',()=>{const original=chargePresets[s.preset].charges.find(c=>c.id===s.selected);if(!original){showError('This source was added after the preset. Use Reset to restore the arrangement.');return;}const clone=structuredClone(s.charges);Object.assign(clone.find(c=>c.id===s.selected),original);try{validateCharges(clone);if(tab===2)validatePotentialProbes({...s,charges:clone});s.charges=clone;render();}catch(e){showError(e.message);}});
-  for(const id of ['charge-range','charge-number','charge-x','charge-y','probe-x','probe-y','b-x','b-y','test-charge','uniform-e',...['voltage','d','L','q','mass','x0','y0','vx','vy','externalX','externalY','entry-speed'].map(x=>'m-'+x)]){
+  for(const id of ['charge-range','charge-number','charge-x','charge-y','probe-x','probe-y','b-x','b-y','test-charge','uniform-e',...['voltage','d','L','q','mass','x0','y0','vx','vy','externalX','externalY','entry-speed','speed'].map(x=>'m-'+x)]){
     on(id,id==='charge-range'?'input':'change',e=>{
       const input=e.target,n=Number(input.value),old=structuredClone(s);
       try{
@@ -138,7 +138,10 @@ function bind(){
         else if(id==='uniform-e')s.uniformE=n;
         else if(id.startsWith('m-')){
           const key=id.slice(2);
-          if(key==='entry-speed'){
+          if(key==='speed'){
+            const c=s.motion,g=motionGeometry(c),sign=Math.sign(c.voltage)||1,direction=c.bDirection??-1;
+            const v=c.orientation==='vertical'?{x:0,y:-sign*direction*n}:{x:sign*direction*n,y:0};c.vx=v.x;c.vy=v.y;
+          }else if(key==='entry-speed'){
             const g=motionGeometry(s.motion),v=g.local({x:s.motion.vx,y:s.motion.vy});
             const next=g.world(s.experiment==='parallel'?v.u:n,s.experiment==='parallel'?n:v.n);s.motion.vx=next.x;s.motion.vy=next.y;
           }else s.motion[key]=n*(key==='q'?1e-9:key==='mass'||key.startsWith('external')?1e-6:1);
@@ -154,13 +157,17 @@ function bind(){
   on('individual-fields','change',e=>{s.individualFields=e.target.checked;update();});
   on('field-vector-key','click',e=>{const button=e.target.closest('[data-field-vector]');if(!button)return;s.fieldFocus=button.dataset.fieldVector;for(const el of button.parentElement.children)el.setAttribute('aria-pressed',String(el===button));scheduleDraw();});
   on('potential-mode','change',e=>{const previous=s.uniform;s.uniform=e.target.value==='uniform';try{validatePotentialProbes(s);}catch(error){s.uniform=previous;e.target.value=previous?'uniform':'point';showError(error.message);return;}clearAttachments(s,'Potential model changed. Probes released.');s.revealed=false;update();});
-  on('gravity','change',e=>{s.motion.gravity=e.target.checked;resetMotionClock(s,'Gravity changed; external forces are unchanged.');render();});
+  on('gravity','change',e=>{s.motion.gravity=e.target.checked;resetMotionClock(s,'Gravity changed; other forces are unchanged.');render();});
   on('zoom','input',e=>{s.zoom=Number(e.target.value);document.getElementById('zoom-output').textContent=s.zoom.toFixed(1)+'×';scheduleDraw();});
   on('speed','change',e=>s.speed=Number(e.target.value));
-  on('motion-reverse','click',()=>{s.motion.voltage=-s.motion.voltage;restoreMotionStart(s.motion);resetMotionClock(s,'Polarity reversed. External force unchanged; press Play to restart.');render();});
-  on('motion-orientation','change',e=>{orientMotion(s.motion,e.target.value,{equilibrium:s.experiment==='equilibrium'});s.zoom=1;resetMotionClock(s,s.experiment==='equilibrium'?'Orientation adapted. The displayed external force balances the electric force and weight.':'Orientation adapted. Gravity remains downward.');render();});
+  on('motion-reverse','click',()=>{s.motion.voltage=-s.motion.voltage;restoreMotionStart(s.motion);resetMotionClock(s,'Polarity reversed. Other parameters preserved; press Play to restart.');render();});
+  on('motion-orientation','change',e=>{const notice=orientMotion(s.motion,e.target.value,{equilibrium:s.experiment==='equilibrium'});s.zoom=1;resetMotionClock(s,notice);render();});
   on('motion-length','input',e=>{s.motion.L=Number(e.target.value);restoreMotionStart(s.motion);s.zoom=1;resetMotionClock(s,'Plate length changed. Field magnitude is unchanged.');cancelAnimationFrame(raf);raf=0;lastTime=0;syncMotionControls(s);update();});
-  on('motion-rebalance','click',()=>{rebalanceMotion(s.motion);resetMotionClock(s,'External force explicitly set to balance the electric force and weight.');render();});
+  on('motion-rebalance','click',()=>{try{const notice=rebalanceMotion(s.motion);resetMotionClock(s,notice);showError('');render();}catch(error){showError(error.message);}});
+  on('balancing-force','change',e=>{const mode=e.target.value;selectBalancingForce(s.motion,mode);let notice=mode==='gravity'?'Gravity selected; plate voltage and velocity preserved.':'Magnetic selected.';try{if(mode==='magnetic'&&s.motion.B>0&&s.motion.q!==0)notice=rebalanceMotion(s.motion);}catch(error){notice=error.message+' Initial velocity preserved.';}resetMotionClock(s,notice);render();});
+  const setB=e=>{const input=e.target,raw=Number(input.value),value=input.id==='magnetic-strength'?Math.round(raw*100)/100:raw;if(!input.value.trim()||!Number.isFinite(value)||value<0||value>2){showError('Enter a finite B magnitude from 0 to 2 T.');input.setAttribute('aria-invalid','true');return;}changeMagneticField(s,{B:value});showError('');input.removeAttribute('aria-invalid');syncMotionControls(s);update();};
+  on('magnetic-strength','input',setB);on('m-B','change',setB);
+  on('magnetic-reverse','click',()=>{changeMagneticField(s,{bDirection:-s.motion.bDirection});syncMotionControls(s);update();});
   on('motion-limit','change',e=>{const value=Number(e.target.value);if(!e.target.value.trim()||!Number.isFinite(value)||value<1||value>3600){showError('Enter a time limit from 1 to 3600 s.');return;}s.timeLimit=value;resetMotionClock(s,'Time limit changed.');render();});
   on('motion-replay','click',()=>{resetMotionClock(s);render();});
   on('play','click',()=>{
@@ -170,7 +177,7 @@ function bind(){
     s.playing=true;advanceMotion(s,s.time,motionView());update();
     if(s.playing)raf=requestAnimationFrame(animate);
   });
-  on('step','click',()=>{s.playing=false;cancelAnimationFrame(raf);raf=0;lastTime=0;advanceMotion(s,s.time+.01,motionView());s.revealed=false;update();});
+  on('step','click',()=>{s.playing=false;cancelAnimationFrame(raf);raf=0;lastTime=0;advanceMotion(s,s.time+Math.min(.01,motionClockRate(s.motion)*.1),motionView());s.revealed=false;update();});
   on('guide','change',e=>{s.guide=Number(e.target.value);document.getElementById('guide-text').textContent=investigations[tab][s.guide][2];update();});
   on('load-guide','click',()=>{if(tab===2&&isPlates(s)){const guide=s.guide;states[2]=potentialModels.point;states[2].guide=guide;render();document.getElementById('load-guide').click();return;}if(tab===2){clearAttachments(s);s.samePotentialDemo=false;}const key=investigations[tab][s.guide][1];if(tab===3)loadExperiment(s,key);else if(key==='uniform'){s.uniform=true;s.probe={x:0,y:0};s.b={x:0,y:.1};}else loadPreset(s,key);s.revealed=false;render();});
   on('challenge-select','change',e=>{s.challenge=Number(e.target.value);s.revealed=false;s.prediction='';document.getElementById('prediction').value='';document.getElementById('hint-text').hidden=true;updateChallenge();});
@@ -260,7 +267,7 @@ function contributionTable(v,symbol,unit,s,target){return `<table><caption>Compo
 function updateChallenge(){const s=states[tab],q=(tab===2&&isPlates(s)?plateChallenges:tab===3?motionChallenges(s):challenges[tab])[s.challenge];document.getElementById('challenge-question').textContent=q.question;document.getElementById('answer-unit').textContent=q.unit?'('+q.unit+')':'';const f=document.getElementById('feedback');if(!s.revealed){f.innerHTML='';return;}try{const answer=q.answer(s),passed=checkAnswer(s.prediction,answer);f.className=passed?'feedback success':'feedback';f.innerHTML=`<b>${passed?'Correct prediction.':'Compare your prediction.'}</b><p>Current answer: <strong>${typeof answer==='string'?answer:fmt(answer,q.unit)}</strong></p><p>${q.explain}</p><p class="small">Use the live Calculations panel for the numerical substitution and working.</p>`;}catch(e){f.className='feedback';f.textContent=e.message;}}
 function animate(now){
   raf=0;const s=states[3];if(!s.playing||tab!==3||document.hidden)return;
-  if(lastTime)advanceMotion(s,s.time+Math.min((now-lastTime)/1000,.05)*.1*s.speed,motionView());
+  if(lastTime)advanceMotion(s,s.time+Math.min((now-lastTime)/1000,.05)*motionClockRate(s.motion)*s.speed,motionView());
   lastTime=now;s.revealed=false;update();if(s.playing)raf=requestAnimationFrame(animate);
 }
 nav.addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b)selectTab(Number(b.dataset.tab));});

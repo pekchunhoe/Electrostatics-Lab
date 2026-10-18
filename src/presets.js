@@ -1,5 +1,5 @@
 import {motionGeometry} from './physics.js';
-import {rebalanceMotion,resetMotionClock} from './motion-state.js';
+import {selectBalancingForce,resetMotionClock} from './motion-state.js';
 const c=(id,q,x,y)=>({id,q:q*1e-6,x,y});
 export const chargePresets = {
   positive:{label:'Single positive',charges:[c('1',2,0,0)]},
@@ -14,7 +14,7 @@ export const motionPresets={
   rest:{label:'A · Initially at rest',x0:0,y0:0,vx:0,vy:0},
   perpendicular:{label:'B · Perpendicular launch',x0:-.12,y0:0,vx:2,vy:0},
   parallel:{label:'C · Parallel / reversal',x0:0,y0:.01,vx:0,vy:-.3},
-  equilibrium:{label:'D · Dynamic equilibrium',x0:-.12,y0:0,vx:1,vy:0,gravity:true,voltage:784.8}
+  equilibrium:{label:'D · Dynamic equilibrium',x0:-.12,y0:0,vx:1,vy:0,gravity:true,voltage:784.8,balanceMode:'gravity',B:.2,bDirection:-1}
 };
 export const motionDefaults={L:.3,orientation:'horizontal',externalX:0,externalY:0,voltage:300,d:.08,q:1e-9,mass:1e-6,gravity:false,x0:-.12,y0:0,vx:2,vy:0};
 export function makeState(tab) {
@@ -33,6 +33,6 @@ export function loadExperiment(state,key) {
   const c=state.motion,g=motionGeometry(c),position=g.world(key==='rest'||key==='parallel'?0:-.4*L,key==='parallel'?c.d*.125:0);
   const velocity=g.world(key==='perpendicular'?2:key==='equilibrium'?1:0,key==='parallel'?-.3:0);
   Object.assign(c,{x0:position.x,y0:position.y,vx:velocity.x,vy:velocity.y});
-  if(key==='equilibrium'&&orientation==='vertical')rebalanceMotion(c);
+  if(key==='equilibrium'){delete c.externalX;delete c.externalY;if(orientation==='vertical')selectBalancingForce(c,'magnetic',{initialize:true});}
   resetMotionClock(state);
 }

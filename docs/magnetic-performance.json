@@ -1,0 +1,54 @@
+{
+  "viewport": "390 x 844",
+  "dpr": 2,
+  "canvas": {
+    "width": 364,
+    "height": 371
+  },
+  "measurement": "Exact physics plus canvas rendering, 20 warmup and 100 measured frames per case. Desktop Chromium without CPU throttling; DOM calculations are excluded.",
+  "results": [
+    {
+      "case": "gravity",
+      "medianMs": 0.1,
+      "p95Ms": 0.3,
+      "maxSegments": 1
+    },
+    {
+      "case": "horizontal equilibrium",
+      "medianMs": 0.3,
+      "p95Ms": 0.6,
+      "maxSegments": 2
+    },
+    {
+      "case": "vertical equilibrium",
+      "medianMs": 0.3,
+      "p95Ms": 0.5,
+      "maxSegments": 1
+    },
+    {
+      "case": "field exit",
+      "medianMs": 0.3,
+      "p95Ms": 0.5,
+      "maxSegments": 2
+    },
+    {
+      "case": "visible orbit",
+      "medianMs": 0.3,
+      "p95Ms": 0.5,
+      "maxSegments": 1
+    },
+    {
+      "case": "maximum B and q/m",
+      "medianMs": 0.3,
+      "p95Ms": 0.5,
+      "maxSegments": 1
+    },
+    {
+      "case": "live field history",
+      "medianMs": 0.3,
+      "p95Ms": 0.5,
+      "maxSegments": 3
+    }
+  ],
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 Safari/537.36"
+}

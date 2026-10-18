@@ -18,7 +18,7 @@ export const investigations=[
   ],[
     ['From rest to motion','rest','Predict the initial force and acceleration. Play or step forward; a nonzero resultant force changes the velocity.'],
     ['Launch across the field','perpendicular','Predict the deflection. Compare tangential and normal motion. Orientation rotates the initial position and velocity. Electric force stops at the open plate end; other displayed forces continue.'],
-    ['Moving equilibrium','equilibrium','For horizontal plates compare electric force with weight. For vertical plates inspect the displayed external balancing force. Reverse polarity to break equilibrium; use Rebalance Forces explicitly to restore it.'],
+    ['Moving equilibrium','equilibrium','For horizontal plates compare electric force with weight. For vertical plates investigate the optional magnetic extension: FE + q(v × B). Change B or polarity to break equilibrium; explicitly balance by changing initial velocity. Select Gravity manually to observe perpendicular forces.'],
   ]
 ];
 const task=(title,question,unit,answer,hint,explain)=>({title,question,unit,answer,hint,explain});
@@ -58,13 +58,19 @@ export function checkAnswer(input,answer){
 
 export function motionChallenges(s){
   const items=challenges[3].map(q=>({...q}));
-  items[0].explain='Sum the electric, gravitational and displayed external force vectors, then divide the normal component by mass.';
+  items[0].explain='Sum the selected force vectors, then divide the normal component by mass. In magnetic mode use the instantaneous velocity in q(v × B).';
   items[1].hint='Signed voltage divided by separation; +normal is upward for horizontal plates and rightward for vertical plates.';
   items[1].explain='The field points from higher to lower potential. Orientation changes components, not its magnitude.';
   items[2].explain='Use normal velocity in each constant-acceleration segment, with continuous velocity at field exit.';
   items[3].explain='Normal displacement uses the initial normal velocity and acceleration in each segment.';
   if(s.motion.orientation==='vertical'){
-    Object.assign(items[4],{question:'Can the horizontal electric force alone balance downward weight? Answer impossible or possible.',unit:'',answer:()=> 'impossible',hint:'Horizontal and vertical forces cannot cancel each other.',explain:'A vertical plate field is horizontal. Rebalance Forces supplies an explicitly displayed external vector to balance electric force and weight.'});
+    Object.assign(items[4],{question:'Can the horizontal electric force alone balance downward weight? Answer impossible or possible.',unit:'',answer:()=> 'impossible',hint:'Horizontal and vertical forces cannot cancel each other.',explain:'A vertical plate field is horizontal. Gravity mode cannot balance these perpendicular forces. The optional magnetic mode instead uses velocity-dependent q(v × B), with gravity neglected.'});
+  }
+  if(s.motion.balanceMode==='magnetic'){
+    Object.assign(items[0],{title:'Magnetic force',question:'What is the magnitude of the initial magnetic force?',unit:'N',answer:s=>Math.abs(s.motion.q)*Math.hypot(s.motion.vx,s.motion.vy)*s.motion.B,hint:'Use the initial speed and selected B.',explain:'For motion in the screen plane, |FB| = |q|vB. Gravity is neglected.'});
+    Object.assign(items[2],{title:'Required speed',question:'What speed magnitude is required for crossed-field equilibrium?',unit:'m/s',answer:s=>{if(s.motion.B===0)throw new RangeError('Magnetic balancing unavailable when B = 0.');return Math.abs(s.motion.voltage/s.motion.d)/s.motion.B;},hint:'E = |ΔV|/d; divide by B.',explain:'v = E/B, with velocity in the E × B direction. This condition does not depend on the charge sign.'});
+    Object.assign(items[3],{title:'Orbital frequency',question:'What is the magnetic-only angular frequency magnitude?',unit:'rad/s',answer:s=>Math.abs(s.motion.q)*s.motion.B/s.motion.mass,hint:'Use |q|B/m.',explain:'The circular angular frequency magnitude is |q|B/m. Magnetic force alone conserves speed.'});
+    Object.assign(items[5],{explain:'Reversing q reverses both FE and FB. A balanced crossed-field velocity remains balanced for either nonzero charge sign.'});
   }
   return items;
 }

@@ -41,13 +41,20 @@ for(const orientation of ['horizontal','vertical'])for(const key of ['rest','per
   if(key==='rest')assert.equal(Math.hypot(s.motion.vx,s.motion.vy),0);
   if(key==='perpendicular'){close(v.n,0);close(v.u,2);}
   if(key==='parallel'){close(v.u,0);close(v.n,-.3);}
-  if(key==='equilibrium'){close(m.ax,0);close(m.ay,0);assert.ok(Math.hypot(m.vx,m.vy)>0);if(orientation==='vertical'){assert.notEqual(s.motion.externalX,0);close(s.motion.externalY,s.motion.mass*G);}const stopped=motionAt({...s.motion,vx:0,vy:0},1,{stopStationary:true});assert.equal(stopped.status,'Stationary');close(stopped.time,0);}
+  if(key==='equilibrium'){
+    close(m.ax,0);close(m.ay,0);assert.ok(Math.hypot(m.vx,m.vy)>0);
+    assert.equal('externalX' in s.motion,false);assert.equal('externalY' in s.motion,false);
+    if(orientation==='vertical'){
+      assert.equal(s.motion.balanceMode,'magnetic');assert.equal(motionForces(s.motion).gravity.y,0);
+      const stopped=motionAt({...s.motion,vx:0,vy:0},0);assert.notEqual(stopped.ax,0);
+    }else {const stopped=motionAt({...s.motion,vx:0,vy:0},1,{stopStationary:true});assert.equal(stopped.status,'Stationary');close(stopped.time,0);}
+  }
 });
 
-test('explicit balancing force, polarity breaking equilibrium, restoring balance and gravity outside',()=>{
+test('explicit magnetic balancing, polarity breaking equilibrium, restoring balance and magnetism outside',()=>{
   const s=makeState(3);s.motion.orientation='vertical';loadExperiment(s,'equilibrium');const c=s.motion;
-  const external={x:c.externalX,y:c.externalY},initial=motionAt(c,0);close(initial.ax,0);close(initial.ay,0);
-  c.voltage*=-1;const broken=motionAt(c,0);close(broken.ax,-19.62);close(broken.ay,0);assert.deepEqual({x:c.externalX,y:c.externalY},external);
+  const field=c.B,velocity=c.vy,initial=motionAt(c,0);close(initial.ax,0);close(initial.ay,0);
+  c.voltage*=-1;const broken=motionAt(c,0);close(broken.ax,-19.62);close(broken.ay,0);close(c.B,field);close(c.vy,velocity);assert.equal('externalX' in c,false);
   rebalanceMotion(c);close(motionAt(c,0).ax,0);close(motionAt(c,0).ay,0);
   const outside=motionForces(c,false);close(outside.field.x,0);close(outside.acceleration.x,9.81);close(outside.acceleration.y,0);
   const h=motionAt({...base,gravity:true},0),r=motionAt({...base,gravity:true,voltage:-2000},0);close(h.ay,.19);close(r.ay,-19.81);assert.notEqual(r.ay,-h.ay);

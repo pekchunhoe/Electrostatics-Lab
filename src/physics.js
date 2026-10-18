@@ -1,3 +1,4 @@
+import {magneticZ,magneticMotionAt} from './lorentz.js';
 // SI units throughout. Ordinary 3D point-charge laws sampled in an x-y plane.
 export const EPSILON_0 = 8.8541878128e-12;
 export const K = 1 / (4 * Math.PI * EPSILON_0);
@@ -69,21 +70,27 @@ export function motionGeometry(c){
   const E=uniformField(c.voltage,c.d);
   return {L,tangent,normal,local,world,field:world(0,E)};
 }
-export function motionForces(c,inside=true){
+export function motionForces(c,inside=true,velocity={x:c.vx,y:c.vy}){
   const field=inside?motionGeometry(c).field:{x:0,y:0};
-  const electric={x:c.q*field.x,y:c.q*field.y},gravity={x:0,y:c.gravity?-c.mass*G:0},external={x:c.externalX??0,y:c.externalY??0};
+  const magneticMode=c.balanceMode==='magnetic';
+  const electric={x:c.q*field.x,y:c.q*field.y},gravity={x:0,y:(c.balanceMode==='gravity'||(!c.balanceMode&&c.gravity))?-c.mass*G:0};
+  const magnetic=magneticMode?{x:c.q*velocity.y*magneticZ(c),y:-c.q*velocity.x*magneticZ(c)}:{x:0,y:0};
+  // Legacy external forces remain available only to non-D experiments.
+  const external=c.balanceMode?{x:0,y:0}:{x:c.externalX??0,y:c.externalY??0};
   const net={},acceleration={};
   for(const axis of ['x','y']){
-    const total=electric[axis]+gravity[axis]+external[axis],scale=Math.max(Math.abs(electric[axis]),Math.abs(gravity[axis]),Math.abs(external[axis]));
+    const total=electric[axis]+gravity[axis]+magnetic[axis]+external[axis],scale=Math.max(Math.abs(electric[axis]),Math.abs(gravity[axis]),Math.abs(magnetic[axis]),Math.abs(external[axis]));
     finite(total,scale);
     // Only cancel roundoff from summing forces, never small physical forces.
     net[axis]=Math.abs(total)<=4*Number.EPSILON*scale?0:total;
     acceleration[axis]=net[axis]/c.mass;finite(acceleration[axis]);
   }
-  return {field,electric,gravity,external,net,acceleration};
+  return {field,electric,gravity,magnetic,external,net,acceleration};
 }
 export function validateMotion(c){
   finite(c.q,c.mass,c.voltage,c.d,c.x0,c.y0,c.vx,c.vy,c.L??.3,c.externalX??0,c.externalY??0);
+  if(c.balanceMode&&!['gravity','magnetic'].includes(c.balanceMode))throw new RangeError('Choose Gravity or Magnetic.');
+  if(c.balanceMode==='magnetic'){finite(c.B);if(c.B<0||c.B>2)throw new RangeError('Use B from 0 to 2 T.');if(![-1,1].includes(c.bDirection))throw new RangeError('Choose a magnetic field direction.');}
   if(c.mass<=0)throw new RangeError('Mass must be greater than zero.');
   if((c.L??.3)<=0)throw new RangeError('Plate length must be positive.');
   if(!['horizontal','vertical'].includes(c.orientation??'horizontal'))throw new RangeError('Choose a valid plate orientation.');
@@ -104,6 +111,7 @@ export function motionAt(c,t,{bounds,fromTime=0,maxTime=Infinity,stopStationary=
   validateMotion(c);finite(t,fromTime);
   if(t<0||fromTime<0||fromTime>t||!(maxTime>0))throw new RangeError('Use non-negative elapsed time and a positive time limit.');
   if(bounds){finite(bounds.minX,bounds.maxX,bounds.minY,bounds.maxY);if(bounds.minX>=bounds.maxX||bounds.minY>=bounds.maxY)throw new RangeError('Invalid canvas bounds.');}
+  if(c.balanceMode==='magnetic')return magneticMotionAt(c,t,{bounds,fromTime,maxTime,stopStationary});
   const g=motionGeometry(c),half=g.L/2,end=Math.min(t,Math.max(fromTime,maxTime));
   let p={x:c.x0,y:c.y0,vx:c.vx,vy:c.vy},elapsed=0,events=[],segments=[];
   const tangentAcceleration=g.local(motionForces(c,false).acceleration).u;

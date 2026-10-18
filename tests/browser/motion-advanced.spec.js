@@ -90,18 +90,18 @@ for(const orientation of ['horizontal','vertical'])test(`${orientation}: collisi
   await expect(page.locator('#motion-event')).toHaveText('Particle hit the plate');await page.clock.runFor(1000);close((await data(page)).time,m.time);await click(page,'motion-replay');close((await data(page)).time,0);
 });
 
-test('vertical equilibrium displays external force, reversal breaks it, explicit Rebalance restores it',async({page})=>{
-  await start(page);await page.locator('#motion-orientation').selectOption('vertical');await page.locator('#preset').selectOption('equilibrium');await details(page,'settings');await details(page,'motion-advanced');
-  await expect(page.locator('#m-externalX')).toHaveValue('-9.81');await expect(page.locator('#m-externalY')).toHaveValue('9.81');close((await data(page)).ax,0);close((await data(page)).ay,0);
-  await page.locator('#motion-reverse').click();close((await data(page)).ax,-19.62);close((await data(page)).ay,0);await expect(page.locator('#m-externalX')).toHaveValue('-9.81');
-  await page.locator('#motion-rebalance').click();close((await data(page)).ax,0);close((await data(page)).ay,0);await expect(page.locator('#m-externalX')).toHaveValue('9.81');
-  await details(page,'calculations');await expect(page.locator('#calculation-body')).toContainText('External force');await expect(page.locator('#calculation-body')).toContainText('dynamic equilibrium');
+test('vertical magnetic equilibrium, reversal and explicit balancing replace external force',async({page})=>{
+  await start(page);await page.locator('#motion-orientation').selectOption('vertical');await page.locator('#preset').selectOption('equilibrium');
+  await expect(page.locator('#balancing-force')).toHaveValue('magnetic');await expect(page.locator('#m-externalX')).toHaveCount(0);close((await data(page)).ax,0);close((await data(page)).ay,0);
+  await page.locator('#motion-reverse').click();close((await data(page)).ax,-19.62);close((await data(page)).ay,0);
+  await page.locator('#motion-rebalance').click();close((await data(page)).ax,0);close((await data(page)).ay,0);
+  await details(page,'calculations');await expect(page.locator('#calculation-body')).not.toContainText('External force');await expect(page.locator('#calculation-body')).toContainText('dynamic equilibrium');
 });
 
-test('stationary equilibrium retains every balancing force arrow and suppresses the acceleration direction',async({page})=>{
-  await start(page);await page.locator('#motion-orientation').selectOption('vertical');await page.locator('#preset').selectOption('equilibrium');await details(page,'settings');await input(page,'m-vx',0);await input(page,'m-vy',0);await capture(page);
+test('stationary gravity equilibrium retains electric and weight arrows and suppresses acceleration',async({page})=>{
+  await start(page);await page.locator('#preset').selectOption('equilibrium');await details(page,'settings');await input(page,'m-vx',0);await input(page,'m-vy',0);await capture(page);
   await page.locator('[data-toggle="trace"]').uncheck();await frames(page);expect((await data(page)).status).toBe('Stationary');
-  const colors=await page.evaluate(()=>window.motionStrokes.map(s=>s.color));for(const color of ['#087a6b','#916329','#ae438b'])expect(colors).toContain(color);expect(colors).not.toContain('#b25f00');
+  const colors=await page.evaluate(()=>window.motionStrokes.map(s=>s.color));for(const color of ['#087a6b','#916329'])expect(colors).toContain(color);expect(colors).not.toContain('#b25f00');expect(colors).not.toContain('#ae438b');
 });
 
 test('stationary states stop at zero, slow motion reaches the named safeguard, and reversal remains active',async({page})=>{

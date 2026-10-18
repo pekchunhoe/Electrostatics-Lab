@@ -1,3 +1,5 @@
+Experiment D update: its artificial external-force model is superseded by [gravity and adjustable magnetic balancing](DYNAMIC_EQUILIBRIUM_VALIDATION.md). The report below records the earlier implementation.
+
 **Uniform Electric Field — advanced enhancements and validation**
 
 Validated locally on 18 October 2026. All five requested features are implemented in the existing Uniform Electric Field main tab.
