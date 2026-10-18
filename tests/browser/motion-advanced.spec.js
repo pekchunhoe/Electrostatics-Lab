@@ -93,7 +93,7 @@ for(const orientation of ['horizontal','vertical'])test(`${orientation}: collisi
 test('vertical magnetic equilibrium, reversal and explicit balancing replace external force',async({page})=>{
   await start(page);await page.locator('#motion-orientation').selectOption('vertical');await page.locator('#preset').selectOption('equilibrium');
   await expect(page.locator('#balancing-force')).toHaveValue('magnetic');await expect(page.locator('#m-externalX')).toHaveCount(0);close((await data(page)).ax,0);close((await data(page)).ay,0);
-  await page.locator('#motion-reverse').click();close((await data(page)).ax,-19.62);close((await data(page)).ay,0);
+  await page.locator('#motion-reverse').click();close((await data(page)).ax,-2e6);close((await data(page)).ay,0);
   await page.locator('#motion-rebalance').click();close((await data(page)).ax,0);close((await data(page)).ay,0);
   await details(page,'calculations');await expect(page.locator('#calculation-body')).not.toContainText('External force');await expect(page.locator('#calculation-body')).toContainText('dynamic equilibrium');
 });

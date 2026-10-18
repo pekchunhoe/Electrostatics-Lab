@@ -28,11 +28,11 @@ export function loadPreset(state,key) {
 }
 export function loadExperiment(state,key) {
   if(!motionPresets[key])throw new RangeError('Unknown experiment');
-  const orientation=state.motion.orientation??'horizontal',L=state.motion.L??.3;
+  const orientation=state.motion.orientation??'horizontal',L=state.motion.L??.3,resetMode=state.experiment==='equilibrium'&&key==='equilibrium'?state.motion.balanceMode:null;
   state.experiment=key;state.motion={...motionDefaults,...motionPresets[key],orientation,L};
   const c=state.motion,g=motionGeometry(c),position=g.world(key==='rest'||key==='parallel'?0:-.4*L,key==='parallel'?c.d*.125:0);
   const velocity=g.world(key==='perpendicular'?2:key==='equilibrium'?1:0,key==='parallel'?-.3:0);
   Object.assign(c,{x0:position.x,y0:position.y,vx:velocity.x,vy:velocity.y});
-  if(key==='equilibrium'){delete c.externalX;delete c.externalY;if(orientation==='vertical')selectBalancingForce(c,'magnetic',{initialize:true});}
+  if(key==='equilibrium'){delete c.externalX;delete c.externalY;if(resetMode==='magnetic'||(!resetMode&&orientation==='vertical'))selectBalancingForce(c,'magnetic',{initialize:true,demo:true});}
   resetMotionClock(state);
 }

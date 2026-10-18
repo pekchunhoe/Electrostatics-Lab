@@ -1,3 +1,5 @@
+Magnetic trajectory follow-up: [root-cause investigation, rightward launch and visible SI defaults](MAGNETIC_TRAJECTORY_FIX_VALIDATION.md) supersede this earlier magnetic initialization/default description and extend its validation.
+
 # Dynamic Equilibrium: gravity and adjustable magnetic balancing
 
 Local implementation and validation, 18 October 2026 (Asia/Kuala_Lumpur). Scope: Uniform Electric Field, Experiment D. This report supersedes the artificial-force description of D in `UNIFORM_FIELD_ADVANCED_VALIDATION.md`.

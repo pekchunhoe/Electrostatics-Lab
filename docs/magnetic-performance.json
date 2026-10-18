@@ -17,10 +17,16 @@
       "case": "horizontal equilibrium",
       "medianMs": 0.3,
       "p95Ms": 0.6,
-      "maxSegments": 2
+      "maxSegments": 1
     },
     {
       "case": "vertical equilibrium",
+      "medianMs": 0.3,
+      "p95Ms": 0.4,
+      "maxSegments": 1
+    },
+    {
+      "case": "reference unbalanced",
       "medianMs": 0.3,
       "p95Ms": 0.5,
       "maxSegments": 1
@@ -28,13 +34,13 @@
     {
       "case": "field exit",
       "medianMs": 0.3,
-      "p95Ms": 0.5,
+      "p95Ms": 0.7,
       "maxSegments": 2
     },
     {
       "case": "visible orbit",
       "medianMs": 0.3,
-      "p95Ms": 0.5,
+      "p95Ms": 0.4,
       "maxSegments": 1
     },
     {

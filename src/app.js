@@ -1,5 +1,5 @@
 import {balancingControls,motionPlateControls,motionSettings,motionStatusMarkup,updateMotionStatus,motionWorking,motionLegend,syncMotionControls} from './motion-ui.js';
-import {selectBalancingForce,changeMagneticField,motionClockRate,resetMotionClock,restoreMotionStart,orientMotion,rebalanceMotion,advanceMotion} from './motion-state.js';
+import {selectBalancingForce,setMagneticSpeed,matchRightwardField,changeMagneticField,motionClockRate,resetMotionClock,restoreMotionStart,orientMotion,rebalanceMotion,advanceMotion} from './motion-state.js';
 import {motionGeometry} from './physics.js';
 import {isPlates,plateModel,createPotentialModels,updatePlates,plateDefaults} from './parallel-plates.js';
 import {potentialLayers,potentialLegend,plateChallenges,plateControls,plateWorking,fieldEquipotentialActivity} from './potential-model-ui.js';
@@ -68,6 +68,7 @@ function fieldExplanation(s,e){
 function render(){
   states[3].playing=false;lastTime=0;cancelAnimationFrame(raf);raf=0;states.forEach((s,i)=>{if(i!==tab)s.playing=false;});
   const s=states[tab],c=s.charges.find(x=>x.id===s.selected),open=Object.fromEntries([...app.querySelectorAll('details[id]')].map(x=>[x.id,x.open]));
+  if(tab===3)s.motionComponentsOpen=open['motion-components']??s.motionComponentsOpen??false;
   if(tab===2&&open['equipotential-working']!==undefined)s.equipotentialWorkingOpen=open['equipotential-working'];
   if(innerWidth>=1120&&open.calculations===undefined)open.calculations=true;
   for(const button of nav.children){const selected=Number(button.dataset.tab)===tab;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;}
@@ -139,12 +140,11 @@ function bind(){
         else if(id.startsWith('m-')){
           const key=id.slice(2);
           if(key==='speed'){
-            const c=s.motion,g=motionGeometry(c),sign=Math.sign(c.voltage)||1,direction=c.bDirection??-1;
-            const v=c.orientation==='vertical'?{x:0,y:-sign*direction*n}:{x:sign*direction*n,y:0};c.vx=v.x;c.vy=v.y;
-          }else if(key==='entry-speed'){
+            setMagneticSpeed(s.motion,n);          }else if(key==='entry-speed'){
             const g=motionGeometry(s.motion),v=g.local({x:s.motion.vx,y:s.motion.vy});
             const next=g.world(s.experiment==='parallel'?v.u:n,s.experiment==='parallel'?n:v.n);s.motion.vx=next.x;s.motion.vy=next.y;
           }else s.motion[key]=n*(key==='q'?1e-9:key==='mass'||key.startsWith('external')?1e-6:1);
+          if(s.motion.balanceMode==='magnetic'&&s.motion.orientation!=='vertical'&&((key==='vx'&&n<=0)||(key==='vy'&&n!==0)))throw new RangeError('Horizontal magnetic launches use vx > 0 and vy = 0. Adjust Particle Speed; later velocity evolves freely.');
           if(key==='d'||key==='L')restoreMotionStart(s.motion);
           validateMotion(s.motion);cancelAnimationFrame(raf);raf=0;lastTime=0;resetMotionClock(s,'Parameters changed. Press Play to start.');
           if(key==='L')s.zoom=1;
@@ -164,7 +164,8 @@ function bind(){
   on('motion-orientation','change',e=>{const notice=orientMotion(s.motion,e.target.value,{equilibrium:s.experiment==='equilibrium'});s.zoom=1;resetMotionClock(s,notice);render();});
   on('motion-length','input',e=>{s.motion.L=Number(e.target.value);restoreMotionStart(s.motion);s.zoom=1;resetMotionClock(s,'Plate length changed. Field magnitude is unchanged.');cancelAnimationFrame(raf);raf=0;lastTime=0;syncMotionControls(s);update();});
   on('motion-rebalance','click',()=>{try{const notice=rebalanceMotion(s.motion);resetMotionClock(s,notice);showError('');render();}catch(error){showError(error.message);}});
-  on('balancing-force','change',e=>{const mode=e.target.value;selectBalancingForce(s.motion,mode);let notice=mode==='gravity'?'Gravity selected; plate voltage and velocity preserved.':'Magnetic selected.';try{if(mode==='magnetic'&&s.motion.B>0&&s.motion.q!==0)notice=rebalanceMotion(s.motion);}catch(error){notice=error.message+' Initial velocity preserved.';}resetMotionClock(s,notice);render();});
+  on('balancing-force','change',e=>{const notice=selectBalancingForce(s.motion,e.target.value,{demo:true});resetMotionClock(s,notice);render();});
+  on('magnetic-match-direction','click',()=>{try{const notice=matchRightwardField(s.motion);resetMotionClock(s,notice);render();}catch(error){showError(error.message);}});
   const setB=e=>{const input=e.target,raw=Number(input.value),value=input.id==='magnetic-strength'?Math.round(raw*100)/100:raw;if(!input.value.trim()||!Number.isFinite(value)||value<0||value>2){showError('Enter a finite B magnitude from 0 to 2 T.');input.setAttribute('aria-invalid','true');return;}changeMagneticField(s,{B:value});showError('');input.removeAttribute('aria-invalid');syncMotionControls(s);update();};
   on('magnetic-strength','input',setB);on('m-B','change',setB);
   on('magnetic-reverse','click',()=>{changeMagneticField(s,{bDirection:-s.motion.bDirection});syncMotionControls(s);update();});
@@ -256,6 +257,7 @@ function update(){
       const m=s.motionResult??advanceMotion(s,s.time,motionView());
       if(s.completion){cancelAnimationFrame(raf);raf=0;lastTime=0;}
       strip.innerHTML=stat('Time',fmt(m.time,'s'))+stat('Acceleration |a|',fmt(Math.hypot(m.ax,m.ay),'m/s²'));
+      s.motionComponentsOpen=body.querySelector('#motion-components')?.open??s.motionComponentsOpen??false;
       html=motionWorking(s,m,fmt);updateMotionStatus(s,m,fmt);
 
     }

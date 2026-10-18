@@ -1,0 +1,59 @@
+{
+  "initial": {
+    "time": 0,
+    "x": -0.12,
+    "y": 0,
+    "vx": -49050,
+    "vy": 0,
+    "ax": 0,
+    "ay": 0,
+    "ex": 0,
+    "ey": 9810,
+    "status": "In field"
+  },
+  "afterBChange": {
+    "time": 0,
+    "x": -0.12,
+    "y": 0,
+    "vx": -49050,
+    "vy": 0,
+    "ax": 0,
+    "ay": -9.810000000000004,
+    "ex": 0,
+    "ey": 9810,
+    "status": "In field"
+  },
+  "afterPlayback": {
+    "time": 4.403669724770644e-7,
+    "x": -0.1416,
+    "y": -9.511926605504595e-13,
+    "vx": -49050,
+    "vy": -0.000004320000000000002,
+    "ax": 1.728000000000001e-9,
+    "ay": -9.810000000000004,
+    "ex": 0,
+    "ey": 9810,
+    "status": "In field"
+  },
+  "renderedParticle": [
+    104.5542857142857,
+    220.00000000145397
+  ],
+  "canvas": {
+    "x": 285,
+    "y": 243.1875,
+    "width": 642,
+    "height": 440
+  },
+  "scalePixelsPerMetre": 1528.5714285714287,
+  "transverseDisplacementMetres": -9.511926605504595e-13,
+  "transverseDisplacementPixels": -1.453965923984274e-9,
+  "parameters": {
+    "mass": 0.000001,
+    "q": 1e-9,
+    "E": 9810,
+    "Binitial": 0.2,
+    "Bchanged": 0.4
+  },
+  "observation": "Initial velocity is leftward. B changes update actual motion, but the transverse displacement is much smaller than a pixel with the inherited mg/nC defaults."
+}

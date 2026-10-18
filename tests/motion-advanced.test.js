@@ -54,9 +54,9 @@ for(const orientation of ['horizontal','vertical'])for(const key of ['rest','per
 test('explicit magnetic balancing, polarity breaking equilibrium, restoring balance and magnetism outside',()=>{
   const s=makeState(3);s.motion.orientation='vertical';loadExperiment(s,'equilibrium');const c=s.motion;
   const field=c.B,velocity=c.vy,initial=motionAt(c,0);close(initial.ax,0);close(initial.ay,0);
-  c.voltage*=-1;const broken=motionAt(c,0);close(broken.ax,-19.62);close(broken.ay,0);close(c.B,field);close(c.vy,velocity);assert.equal('externalX' in c,false);
+  c.voltage*=-1;const broken=motionAt(c,0);close(broken.ax,-2e6);close(broken.ay,0);close(c.B,field);close(c.vy,velocity);assert.equal('externalX' in c,false);
   rebalanceMotion(c);close(motionAt(c,0).ax,0);close(motionAt(c,0).ay,0);
-  const outside=motionForces(c,false);close(outside.field.x,0);close(outside.acceleration.x,9.81);close(outside.acceleration.y,0);
+  const outside=motionForces(c,false);close(outside.field.x,0);close(outside.acceleration.x,1e6);close(outside.acceleration.y,0);
   const h=motionAt({...base,gravity:true},0),r=motionAt({...base,gravity:true,voltage:-2000},0);close(h.ay,.19);close(r.ay,-19.81);assert.notEqual(r.ay,-h.ay);
 });
 

@@ -60,12 +60,12 @@ export function magneticMotionAt(c,t,{bounds,fromTime=0,maxTime=Infinity,stopSta
   let p={x:c.x0,y:c.y0,vx:c.vx,vy:c.vy},elapsed=0,events=[],segments=[],epoch=0;
   const hasElectric=c.voltage!==0;
   const axisU=c.orientation==='vertical'?'y':'x',axisN=c.orientation==='vertical'?'x':'y';
-  const initialA=motionForces(c,false,{x:p.vx,y:p.vy}).acceleration;
+  const initialA=motionForces({...c,B:history[0].B,bDirection:history[0].bDirection},false,{x:p.vx,y:p.vy}).acceleration;
   let along=Math.abs(p[axisU])<g.L/2||(Math.abs(p[axisU])===g.L/2&&(p[axisU]*p['v'+axisU]<0||(p['v'+axisU]===0&&p[axisU]*initialA[axisU]<0)));
   const result=(status,extra={})=>{
-    const inside=(hasElectric?along:Math.abs(p[axisU])<g.L/2)&&Math.abs(p[axisN])<c.d/2,f=motionForces({...c,B:history[epoch].B,bDirection:history[epoch].bDirection},inside,{x:p.vx,y:p.vy});
+    const inside=status!=='Plate impact'&&(hasElectric?along:Math.abs(p[axisU])<g.L/2)&&Math.abs(p[axisN])<c.d/2,f=motionForces({...c,B:history[epoch].B,bDirection:history[epoch].bDirection},inside,{x:p.vx,y:p.vy});
     finite(p.x,p.y,p.vx,p.vy,elapsed);
-    return {...p,ax:f.acceleration.x,ay:f.acceleration.y,ex:f.field.x,ey:f.field.y,time:elapsed,status,events,segments,...extra};
+    return {...p,forces:f,bz:magneticZ(history[epoch]),ax:f.acceleration.x,ay:f.acceleration.y,ex:f.field.x,ey:f.field.y,time:elapsed,status,events,segments,...extra};
   };
   for(let iteration=0;iteration<200000;iteration++){
     while(epoch+1<history.length&&history[epoch+1].time<=elapsed)epoch++;
@@ -103,6 +103,13 @@ export function magneticMotionAt(c,t,{bounds,fromTime=0,maxTime=Infinity,stopSta
       const tolerance=32*Number.EPSILON*Math.max(dt,time,1e-300);
       if(time>0&&elapsed+time>elapsed&&time<=dt&&(time<dt-tolerance||priority<rank)){dt=time;type=kind;rank=priority;side=wall;}
     };
+    // With E = 0, ordinary open-end crossings need no force transition.
+    // A straight path exactly on a plate surface must still hit its end corner.
+    if(!hasElectric&&qm*bz===0&&p['v'+axisN]===0&&Math.abs(Math.abs(p[axisN])-c.d/2)<=2e-13*Math.max(1,c.d)){
+      for(const wall of [-g.L/2,g.L/2])if(wall*p['v'+axisU]<0){
+        const time=(wall-p[axisU])/p['v'+axisU];offer(time,'impact',0,Math.sign(p[axisN])*c.d/2);
+      }
+    }
     if(hasElectric&&!safeSearch)for(const wall of [-g.L/2,g.L/2])for(const root of coordinateRoots(p,field,qm,bz,axisU,wall,dt)){
       const at=lorentzStep(p,field,qm,bz,root);if(Math.abs(at['v'+axisU])>1e-13)offer(root,'edge',2,wall);
     }

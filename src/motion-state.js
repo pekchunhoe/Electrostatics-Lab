@@ -4,7 +4,7 @@ import {G,motionGeometry,motionForces,motionAt,validateMotion,finite} from './ph
 export const PARTICLE_RADIUS=9; // CSS pixels; shared drawing / full-visibility rule.
 export const terminalMotion=m=>['Plate impact','Canvas exit','Stationary','Time limit'].includes(m.status);
 export function resetMotionClock(s,message=''){
-  delete s.motion.fieldHistory;s.time=0;s.playing=false;s.motionResult=null;s.completion=null;s.motionNotice=message;s.playbackStatus='Ready';
+  normalizeMagneticLaunch(s.motion);delete s.motion.fieldHistory;s.time=0;s.playing=false;s.motionResult=null;s.completion=null;s.motionNotice=message;s.playbackStatus='Ready';
 }
 export function restoreMotionStart(c){
   const g=motionGeometry(c),p=g.local({x:c.x0,y:c.y0});
@@ -16,7 +16,9 @@ export function rebalanceMotion(c){
     if(c.B===0)throw new RangeError('Magnetic balancing unavailable when B = 0.');
     if(c.q===0)throw new RangeError('Choose a nonzero charge to demonstrate force balancing.');
     const e=motionGeometry(c).field,bz=magneticZ(c);
+    if(c.orientation!=='vertical'&&e.x===0&&e.y===0)throw new RangeError('No positive rightward speed balances a nonzero B when E = 0. Set a nonzero electric field explicitly.');
     const vx=e.y/bz,vy=-e.x/bz;
+    if(c.orientation!=='vertical'&&vx<0)throw new RangeError('This magnetic direction cannot balance a rightward launch. Use Match B to Rightward Launch to reverse B explicitly.');
     if(!Number.isFinite(vx)||!Number.isFinite(vy)||Math.hypot(vx,vy)>1e9)throw new RangeError('Required balancing speed exceeds the supported 1e9 m/s range. Increase B explicitly.');
     c.vx=vx;c.vy=vy;
     return 'Initial velocity explicitly set to E × B / B². B, direction and plate settings preserved.';
@@ -33,16 +35,48 @@ export function rebalanceMotion(c){
   c.externalX=-(f.electric.x+f.gravity.x);c.externalY=-(f.electric.y+f.gravity.y);
   return 'External force explicitly set to balance the electric force and weight.';
 }
-export function selectBalancingForce(c,mode,{initialize=false}={}){
-  c.balanceMode=mode;c.gravity=mode==='gravity';delete c.externalX;delete c.externalY;
-  if(initialize){
-    if(mode==='magnetic'){
-      const E=Math.hypot(motionGeometry(c).field.x,motionGeometry(c).field.y);
-      if(c.B===0||E/c.B>1e9)c.B=.2;
-      if(c.q===0){const e=motionGeometry(c).field,bz=magneticZ(c);c.vx=e.y/bz;c.vy=-e.x/bz;return;}
-    }
-    rebalanceMotion(c);
+export function normalizeMagneticLaunch(c){
+  if(c.balanceMode==='magnetic'&&c.orientation!=='vertical'&&c.rightwardLaunch){
+    const speed=Math.hypot(c.vx,c.vy);c.vx=speed>0?speed:500;c.vy=0;
   }
+}
+export function setMagneticSpeed(c,speed){
+  finite(speed);
+  if(speed<0||(c.orientation!=='vertical'&&speed===0))throw new RangeError('Horizontal magnetic launches require a positive rightward speed.');
+  if(c.orientation!=='vertical'){c.vx=speed;c.vy=0;return;}
+  const sign=Math.sign(c.vy)||-Math.sign(c.voltage||1)*(c.bDirection??-1);
+  c.vx=0;c.vy=sign*speed;
+}
+export function matchRightwardField(c){
+  if(c.orientation==='vertical')throw new RangeError('This action is for horizontal rightward launches.');
+  const e=motionGeometry(c).field;
+  if(e.y===0)throw new RangeError('A nonzero electric field is needed for crossed-field balancing.');
+  c.bDirection=Math.sign(e.y);
+  return 'Magnetic direction explicitly matched to rightward motion. Speed and B magnitude preserved; use Balance to set the required speed.';
+}
+export function magneticDemo(c){
+  Object.assign(c,{q:c.q===0?0:Math.sign(c.q)*1e-9,mass:1e-13,voltage:(c.orientation==='vertical'?1:-1)*100*c.d,B:.2,bDirection:-1,magneticInitialized:true});
+  if(c.orientation==='vertical'){c.x0=0;c.y0=-.4*c.L;c.vx=0;c.vy=500;}
+  else {c.x0=-.4*c.L;c.y0=0;c.vx=500;c.vy=0;}
+  return `Magnetic example: q = ${c.q*1e9} nC, m = 1e−13 kg, |E| = 100 N/C, B = 0.20 T, v₀ = 500 m/s. Parameters set to show physical curvature.`;
+}
+export function selectBalancingForce(c,mode,{initialize=false,demo=false}={}){
+  c.balanceMode=mode;c.gravity=mode==='gravity';delete c.externalX;delete c.externalY;
+  if(mode!=='magnetic')return 'Gravity selected; particle and plate parameters preserved.';
+  c.rightwardLaunch=true;
+  if(demo&&!c.magneticInitialized)return magneticDemo(c);
+  c.magneticInitialized=true;normalizeMagneticLaunch(c);
+  if(initialize){
+    const E=Math.hypot(motionGeometry(c).field.x,motionGeometry(c).field.y),oldB=c.B,oldDirection=c.bDirection;
+    if(c.B===0||E/c.B>1e9)c.B=.2;
+    if(E===0){const speed=Math.hypot(c.vx,c.vy)||500;if(c.orientation==='vertical'){c.vx=0;c.vy=speed;}else {c.vx=speed;c.vy=0;}return 'Zero electric field: tangent launch preserved; magnetic-only motion is generally curved, not a force balance.';}
+    if(c.orientation!=='vertical')c.bDirection=Math.sign(c.voltage);
+    const e=motionGeometry(c).field,bz=magneticZ(c);
+    if(c.q===0){c.vx=e.y/bz;c.vy=-e.x/bz;normalizeMagneticLaunch(c);}
+    else rebalanceMotion(c);
+    return `Magnetic orientation preset: tangent launch at E/B.${oldB!==c.B?' B set explicitly to 0.20 T for a supported starting speed.':''}${oldDirection!==c.bDirection?' B direction matched to the rightward launch.':''}`;
+  }
+  return 'Magnetic selected. Horizontal initial motion is rightward; field polarity, B and speed are preserved. Use Balance explicitly if needed.';
 }
 export function changeMagneticField(s,changes){
   const c=s.motion;validateMotion({...c,...changes});
@@ -62,13 +96,16 @@ export function orientMotion(c,orientation,{equilibrium=false}={}){
   const old=motionGeometry(c),position=old.local({x:c.x0,y:c.y0}),velocity=old.local({x:c.vx,y:c.vy});
   c.orientation=orientation;const g=motionGeometry(c),p=g.world(position.u,position.n),v=g.world(velocity.u,velocity.n);
   c.x0=p.x;c.y0=p.y;c.vx=v.x;c.vy=v.y;
-  const previousB=c.B;
+  let notice='Orientation adapted. Gravity remains downward.';
   if(equilibrium){
-    if(orientation==='vertical')selectBalancingForce(c,'magnetic',{initialize:true});
-    else selectBalancingForce(c,'gravity');
-  }restoreMotionStart(c);
-  return equilibrium?(orientation==='vertical'?`Vertical plates selected Magnetic automatically; initial velocity set to E × B / B².${previousB!==c.B?' B set to 0.20 T because the previous field could not support a balancing speed in range.':''}${c.q===0?' Zero charge remains a trivial zero-force case.':''}`:'Horizontal plates selected Gravity. Use Balance Forces to adjust voltage explicitly.'):'Orientation adapted. Gravity remains downward.';
+    if(orientation==='vertical')notice=selectBalancingForce(c,'magnetic',{initialize:true,demo:true});
+    else if(c.balanceMode==='magnetic'){
+      c.x0=-.4*c.L;c.y0=0;notice=selectBalancingForce(c,'magnetic',{initialize:true});
+    }else notice='Horizontal plates selected Gravity. Use Balance Forces to adjust voltage explicitly.';
+  }
+  restoreMotionStart(c);return notice;
 }
+
 export function motionCanvasBounds(view,radius=PARTICLE_RADIUS){
   const lower=view.toWorld({x:-radius,y:view.h+radius}),upper=view.toWorld({x:view.w+radius,y:-radius});
   return {minX:lower.x,maxX:upper.x,minY:lower.y,maxY:upper.y};

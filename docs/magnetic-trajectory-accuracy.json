@@ -1,0 +1,267 @@
+{
+  "source": "48 browser animation samples from actual Play/Pause interactions. Position and velocity compared to independent E×B drift + rotation formulas. Painted disk displacements and signed curvature are measured from canvas commands and checked by actual bitmap disk pixels in the browser tests.",
+  "cases": 16,
+  "samples": 48,
+  "maxPositionErrorMetres": 2.7755575615628914e-17,
+  "maxVelocityErrorMetresPerSecond": 1.1368683772161603e-13,
+  "maxPaintedDisplacementErrorPixels": 9.947598300641403e-14,
+  "maxPaintedCurvatureAreaErrorPixelsSquared": 1.3073986337985843e-12,
+  "results": [
+    {
+      "case": "horizontal-negative-balanced",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": -0.04151999999999984,
+        "y": 0
+      },
+      "finalVelocity": {
+        "vx": 500,
+        "vy": 0
+      },
+      "transverseDisplacementPixels": 0,
+      "paintedCurvatureAreaPixelsSquared": 0,
+      "independentCurvatureAreaPixelsSquared": 0
+    },
+    {
+      "case": "horizontal-negative-decrease",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": -0.0411981520591915,
+        "y": 0.006146475899288282
+      },
+      "finalVelocity": {
+        "vx": 506.14647589928825,
+        "vy": 78.1581520591918
+      },
+      "transverseDisplacementPixels": 9.395327446054946,
+      "paintedCurvatureAreaPixelsSquared": -83.89208878562607,
+      "independentCurvatureAreaPixelsSquared": -83.89208878562556
+    },
+    {
+      "case": "horizontal-negative-increase",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": -0.044047622154678986,
+        "y": -0.011918864060379297
+      },
+      "finalVelocity": {
+        "vx": 452.32454375848283,
+        "vy": -146.8495113812837
+      },
+      "transverseDisplacementPixels": -18.21883506372264,
+      "paintedCurvatureAreaPixelsSquared": 161.0617075663073,
+      "independentCurvatureAreaPixelsSquared": 161.06170756630812
+    },
+    {
+      "case": "horizontal-negative-reverse",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": -0.044085284673475465,
+        "y": 0.024434786933230996
+      },
+      "finalVelocity": {
+        "vx": 451.130426133538,
+        "vy": 308.7894306530494
+      },
+      "transverseDisplacementPixels": 37.35031716936738,
+      "paintedCurvatureAreaPixelsSquared": -345.0345383624997,
+      "independentCurvatureAreaPixelsSquared": -345.034538362501
+    },
+    {
+      "case": "horizontal-positive-balanced",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": -0.04151999999999984,
+        "y": 0
+      },
+      "finalVelocity": {
+        "vx": 500,
+        "vy": 0
+      },
+      "transverseDisplacementPixels": 0,
+      "paintedCurvatureAreaPixelsSquared": 0,
+      "independentCurvatureAreaPixelsSquared": 0
+    },
+    {
+      "case": "horizontal-positive-decrease",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": -0.0411981520591915,
+        "y": -0.006146475899288282
+      },
+      "finalVelocity": {
+        "vx": 506.14647589928825,
+        "vy": -78.1581520591918
+      },
+      "transverseDisplacementPixels": -9.395327446054946,
+      "paintedCurvatureAreaPixelsSquared": 83.89208878562607,
+      "independentCurvatureAreaPixelsSquared": 83.89208878562556
+    },
+    {
+      "case": "horizontal-positive-increase",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": -0.044047622154678986,
+        "y": 0.011918864060379297
+      },
+      "finalVelocity": {
+        "vx": 452.32454375848283,
+        "vy": 146.8495113812837
+      },
+      "transverseDisplacementPixels": 18.21883506372264,
+      "paintedCurvatureAreaPixelsSquared": -161.0617075663073,
+      "independentCurvatureAreaPixelsSquared": -161.06170756630812
+    },
+    {
+      "case": "horizontal-positive-reverse",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": -0.044085284673475465,
+        "y": -0.024434786933230996
+      },
+      "finalVelocity": {
+        "vx": 451.130426133538,
+        "vy": -308.7894306530494
+      },
+      "transverseDisplacementPixels": -37.35031716936738,
+      "paintedCurvatureAreaPixelsSquared": 345.0345383624997,
+      "independentCurvatureAreaPixelsSquared": 345.034538362501
+    },
+    {
+      "case": "vertical-negative-balanced",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": 0,
+        "y": -0.04151999999999984
+      },
+      "finalVelocity": {
+        "vx": 0,
+        "vy": 500
+      },
+      "transverseDisplacementPixels": 0,
+      "paintedCurvatureAreaPixelsSquared": 0,
+      "independentCurvatureAreaPixelsSquared": 0
+    },
+    {
+      "case": "vertical-negative-decrease",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": -0.006146475899288282,
+        "y": -0.0411981520591915
+      },
+      "finalVelocity": {
+        "vx": -78.1581520591918,
+        "vy": 506.14647589928825
+      },
+      "transverseDisplacementPixels": -6.000131235019514,
+      "paintedCurvatureAreaPixelsSquared": -34.21516708121843,
+      "independentCurvatureAreaPixelsSquared": -34.21516708121926
+    },
+    {
+      "case": "vertical-negative-increase",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": 0.011918864060379297,
+        "y": -0.044047622154678986
+      },
+      "finalVelocity": {
+        "vx": 146.8495113812837,
+        "vy": 452.32454375848283
+      },
+      "transverseDisplacementPixels": 11.63508158275122,
+      "paintedCurvatureAreaPixelsSquared": 65.68859250661541,
+      "independentCurvatureAreaPixelsSquared": 65.68859250661482
+    },
+    {
+      "case": "vertical-negative-reverse",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": -0.024434786933230996,
+        "y": -0.044085284673475465
+      },
+      "finalVelocity": {
+        "vx": -308.7894306530494,
+        "vy": 451.130426133538
+      },
+      "transverseDisplacementPixels": -23.85300629196359,
+      "paintedCurvatureAreaPixelsSquared": -140.7214261768052,
+      "independentCurvatureAreaPixelsSquared": -140.7214261768044
+    },
+    {
+      "case": "vertical-positive-balanced",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": 0,
+        "y": -0.04151999999999984
+      },
+      "finalVelocity": {
+        "vx": 0,
+        "vy": 500
+      },
+      "transverseDisplacementPixels": 0,
+      "paintedCurvatureAreaPixelsSquared": 0,
+      "independentCurvatureAreaPixelsSquared": 0
+    },
+    {
+      "case": "vertical-positive-decrease",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": 0.006146475899288282,
+        "y": -0.0411981520591915
+      },
+      "finalVelocity": {
+        "vx": 78.1581520591918,
+        "vy": 506.14647589928825
+      },
+      "transverseDisplacementPixels": 6.000131235019514,
+      "paintedCurvatureAreaPixelsSquared": 34.21516708121843,
+      "independentCurvatureAreaPixelsSquared": 34.21516708121926
+    },
+    {
+      "case": "vertical-positive-increase",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": -0.011918864060379297,
+        "y": -0.044047622154678986
+      },
+      "finalVelocity": {
+        "vx": -146.8495113812837,
+        "vy": 452.32454375848283
+      },
+      "transverseDisplacementPixels": -11.63508158275122,
+      "paintedCurvatureAreaPixelsSquared": -65.68859250661541,
+      "independentCurvatureAreaPixelsSquared": -65.68859250661482
+    },
+    {
+      "case": "vertical-positive-reverse",
+      "sampleCount": 3,
+      "finalTime": 0.0001569600000000003,
+      "finalPosition": {
+        "x": 0.024434786933230996,
+        "y": -0.044085284673475465
+      },
+      "finalVelocity": {
+        "vx": 308.7894306530494,
+        "vy": 451.130426133538
+      },
+      "transverseDisplacementPixels": 23.85300629196359,
+      "paintedCurvatureAreaPixelsSquared": 140.7214261768052,
+      "independentCurvatureAreaPixelsSquared": 140.7214261768044
+    }
+  ]
+}

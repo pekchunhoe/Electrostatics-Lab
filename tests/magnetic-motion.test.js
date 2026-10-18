@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {motionAt,motionForces,motionGeometry,validateMotion} from '../src/physics.js';
 import {lorentzStep} from '../src/lorentz.js';
 import {makeState,loadExperiment} from '../src/presets.js';
-import {selectBalancingForce,orientMotion,rebalanceMotion,changeMagneticField,advanceMotion,resetMotionClock} from '../src/motion-state.js';
+import {selectBalancingForce,orientMotion,rebalanceMotion,matchRightwardField,changeMagneticField,advanceMotion,resetMotionClock} from '../src/motion-state.js';
 import {equilibriumState} from '../src/motion-ui.js';
 
 // Independent SI references: relative 2e-10 / absolute 2e-12 unless stated.
@@ -21,7 +21,7 @@ test('B: vertical gravity resultant independently equals (9.81,-9.81) m/s²',()=
  const m=motionAt(c,0);close(m.ax,9.81);close(m.ay,-9.81);close(Math.hypot(m.ax,m.ay),Math.sqrt(2)*9.81);assert.match(equilibriumState(c,m).text,/perpendicular/);
 });
 for(const orientation of ['horizontal','vertical'])for(const direction of [-1,1])for(const q of [-1e-6,1e-6])test(`C: E=100, B=.2, v=500 equilibrium ${orientation}, B sign ${direction}, q=${q}`,()=>{
- const c={...base,orientation,bDirection:direction,q};rebalanceMotion(c);const f=motionForces(c);
+ const c={...base,orientation,bDirection:direction,q,voltage:orientation==='horizontal'?direction*1e6:base.voltage};rebalanceMotion(c);const f=motionForces(c);
  close(Math.hypot(c.vx,c.vy),500);close(Math.hypot(f.electric.x,f.electric.y),1e-4);close(Math.hypot(f.magnetic.x,f.magnetic.y),1e-4);close(f.net.x,0);close(f.net.y,0);close(f.gravity.y,0);
  const m=motionAt(c,.1);close(m.x,c.vx*.1);close(m.y,c.vy*.1);close(m.ax,0);close(m.ay,0);assert.equal(equilibriumState(c,m).balanced,true);
 });
@@ -30,7 +30,7 @@ for(const [B,FB,ay] of [[.1,5e-5,-25],[.4,2e-4,50],[0,0,-50]])test(`D: changing 
 });
 test('E: reversing B reverses FB, preserves FE and velocity; explicit rebalance changes only velocity',()=>{
  const c={...base},before=motionForces(c);c.bDirection=1;const after=motionForces(c);close(after.magnetic.y,-before.magnetic.y);close(after.electric.y,before.electric.y);close(after.acceleration.y,-100);close(c.vx,500);
- rebalanceMotion(c);close(c.vx,-500);close(c.B,.2);assert.equal(c.bDirection,1);close(motionForces(c).acceleration.y,0);
+ assert.throws(()=>rebalanceMotion(c),/rightward/);close(c.vx,500);matchRightwardField(c);rebalanceMotion(c);close(c.vx,500);close(c.B,.2);assert.equal(c.bDirection,-1);close(motionForces(c).acceleration.y,0);
 });
 for(const [B,radius] of [[.2,2500],[.4,1250]])test(`F: independent orbit radius ${radius} m, B=${B}, speed and energy conserved`,()=>{
  const c={...base,voltage:0,B,mass:1e-6,L:1,x0:10000},w=B,period=2*Math.PI/w;
@@ -68,8 +68,8 @@ test('orientation automatically selects Magnetic; manual Gravity persists; A–C
  const s=makeState(3);loadExperiment(s,'equilibrium');assert.equal(s.motion.balanceMode,'gravity');
  const preserved={q:s.motion.q,mass:s.motion.mass,voltage:s.motion.voltage,d:s.motion.d,B:s.motion.B};
  orientMotion(s.motion,'vertical',{equilibrium:true});assert.equal(s.motion.balanceMode,'magnetic');close(motionAt(s.motion,0).ax,0);
- for(const [key,val] of Object.entries(preserved))close(s.motion[key],val);
- selectBalancingForce(s.motion,'gravity');for(let i=0;i<4;i++)assert.notEqual(motionAt(s.motion,i*.01).ay,0);assert.equal(s.motion.balanceMode,'gravity');
+ for(const key of ['d','B'])close(s.motion[key],preserved[key]);close(s.motion.mass,1e-13);close(s.motion.voltage/s.motion.d,100);close(s.motion.vy,500);
+ selectBalancingForce(s.motion,'gravity');for(let i=0;i<4;i++)assert.notEqual(motionAt(s.motion,i*1e-5).ay,0);assert.equal(s.motion.balanceMode,'gravity');
  for(const key of ['rest','perpendicular','parallel']){loadExperiment(s,key);assert.equal(s.motion.balanceMode,undefined);close(s.motion.externalX,0);close(s.motion.externalY,0);}
 });
 test('electric exit preserves velocity, then B acts outside; curved reentry is localized',()=>{

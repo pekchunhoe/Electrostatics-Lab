@@ -43,7 +43,7 @@ export function drawMotion(ctx,s,v,dark,{line,text,arrow}){
   if(m.status!=='Canvas exit'){
     ctx.beginPath();ctx.arc(point.x,point.y,PARTICLE_RADIUS,0,2*Math.PI);ctx.fillStyle=c.q<0?color.negative:color.positive;ctx.fill();text(c.q===0?'0':c.q>0?'+':'−',point.x-5,point.y+5,'#fff',16);
     if(m.status!=='Plate impact'){
-      const f=motionForces(c,m.ex!==0||m.ey!==0,{x:m.vx,y:m.vy}),max=Math.max(...[f.electric,f.gravity,f.magnetic,f.external].map(z=>Math.hypot(z.x,z.y)),1e-300);
+      const f=m.forces??motionForces(c,m.ex!==0||m.ey!==0,{x:m.vx,y:m.vy}),max=Math.max(...[f.electric,f.gravity,f.magnetic,f.external].map(z=>Math.hypot(z.x,z.y)),1e-300);
       let forceIndex=0;
       for(const [vector,label,col] of [[f.electric,'Fₑ',color.electric],[f.gravity,'mg',color.gravity],[f.magnetic,'FB',color.external],[f.external,'Fext',color.external]]){
         const mag=Math.hypot(vector.x,vector.y);if(mag===0)continue;

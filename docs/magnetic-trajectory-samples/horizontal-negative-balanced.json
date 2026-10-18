@@ -1,0 +1,149 @@
+[
+  {
+    "state": {
+      "time": 0.00005184,
+      "x": -0.09408,
+      "y": 0,
+      "vx": 500,
+      "vy": 0,
+      "ax": 0,
+      "ay": 0,
+      "ex": 0,
+      "ey": -100,
+      "feX": 0,
+      "feY": 1.0000000000000001e-7,
+      "fbX": 0,
+      "fbY": -1.0000000000000002e-7,
+      "netX": 0,
+      "netY": 0,
+      "status": "In field",
+      "playing": false
+    },
+    "paintedParticle": {
+      "x": 177.192,
+      "y": 205
+    },
+    "expected": {
+      "x": -0.09408,
+      "y": 0,
+      "vx": 500,
+      "vy": 0
+    },
+    "components": {
+      "fe-x": 0,
+      "fe-y": 1.0000000000000001e-7,
+      "fe-magnitude": 1.0000000000000001e-7,
+      "fb-x": 0,
+      "fb-y": -1.0000000000000002e-7,
+      "fb-magnitude": 1.0000000000000002e-7,
+      "net-x": 0,
+      "net-y": 0,
+      "net-magnitude": 0,
+      "acceleration-x": 0,
+      "acceleration-y": 0,
+      "acceleration-magnitude": 0,
+      "velocity-x": 500,
+      "velocity-y": 0,
+      "velocity-magnitude": 500
+    },
+    "scale": 1528.5714285714287
+  },
+  {
+    "state": {
+      "time": 0.00010512,
+      "x": -0.06744,
+      "y": 0,
+      "vx": 500,
+      "vy": 0,
+      "ax": 0,
+      "ay": 0,
+      "ex": 0,
+      "ey": -100,
+      "feX": 0,
+      "feY": 1.0000000000000001e-7,
+      "fbX": 0,
+      "fbY": -1.0000000000000002e-7,
+      "netX": 0,
+      "netY": 0,
+      "status": "In field",
+      "playing": false
+    },
+    "paintedParticle": {
+      "x": 217.91314285714284,
+      "y": 205
+    },
+    "expected": {
+      "x": -0.06744,
+      "y": 0,
+      "vx": 500,
+      "vy": 0
+    },
+    "components": {
+      "fe-x": 0,
+      "fe-y": 1.0000000000000001e-7,
+      "fe-magnitude": 1.0000000000000001e-7,
+      "fb-x": 0,
+      "fb-y": -1.0000000000000002e-7,
+      "fb-magnitude": 1.0000000000000002e-7,
+      "net-x": 0,
+      "net-y": 0,
+      "net-magnitude": 0,
+      "acceleration-x": 0,
+      "acceleration-y": 0,
+      "acceleration-magnitude": 0,
+      "velocity-x": 500,
+      "velocity-y": 0,
+      "velocity-magnitude": 500
+    },
+    "scale": 1528.5714285714287
+  },
+  {
+    "state": {
+      "time": 0.0001569600000000003,
+      "x": -0.04151999999999984,
+      "y": 0,
+      "vx": 500,
+      "vy": 0,
+      "ax": 0,
+      "ay": 0,
+      "ex": 0,
+      "ey": -100,
+      "feX": 0,
+      "feY": 1.0000000000000001e-7,
+      "fbX": 0,
+      "fbY": -1.0000000000000002e-7,
+      "netX": 0,
+      "netY": 0,
+      "status": "In field",
+      "playing": false
+    },
+    "paintedParticle": {
+      "x": 257.5337142857145,
+      "y": 205
+    },
+    "expected": {
+      "x": -0.041519999999999835,
+      "y": 0,
+      "vx": 500,
+      "vy": 0
+    },
+    "components": {
+      "fe-x": 0,
+      "fe-y": 1.0000000000000001e-7,
+      "fe-magnitude": 1.0000000000000001e-7,
+      "fb-x": 0,
+      "fb-y": -1.0000000000000002e-7,
+      "fb-magnitude": 1.0000000000000002e-7,
+      "net-x": 0,
+      "net-y": 0,
+      "net-magnitude": 0,
+      "acceleration-x": 0,
+      "acceleration-y": 0,
+      "acceleration-magnitude": 0,
+      "velocity-x": 500,
+      "velocity-y": 0,
+      "velocity-magnitude": 500
+    },
+    "scale": 1528.5714285714287
+  }
+]
