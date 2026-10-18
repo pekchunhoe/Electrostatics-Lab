@@ -1,8 +1,11 @@
+import {motionPlateControls,motionSettings,motionStatusMarkup,updateMotionStatus,motionWorking,motionLegend,syncMotionControls} from './motion-ui.js';
+import {resetMotionClock,restoreMotionStart,orientMotion,rebalanceMotion,advanceMotion} from './motion-state.js';
+import {motionGeometry} from './physics.js';
 import {isPlates,plateModel,createPotentialModels,updatePlates,plateDefaults} from './parallel-plates.js';
 import {potentialLayers,potentialLegend,plateChallenges,plateControls,plateWorking,fieldEquipotentialActivity} from './potential-model-ui.js';
 import {K,EPSILON_0,G,forceOn,fieldAt,potentialAt,systemEnergy,magnitude,direction,uniformField,motionAt,validateCharges,validateMotion} from './physics.js';
 import {makeState,loadPreset,loadExperiment,chargePresets,motionPresets} from './presets.js';
-import {investigations,challenges,getPotential,checkAnswer} from './learning.js';
+import {investigations,challenges,motionChallenges,getPotential,checkAnswer} from './learning.js';
 import {draw,viewport} from './render.js';
 import {individualFields,fieldLabel} from './field-vectors.js';
 import {initializeSnapping,setSnapping,clearAttachments,releaseProbe,movePotentialProbe,reconcileAttachments,validatePotentialProbes,samePotential,potentialComparison} from './equipotential.js';
@@ -63,7 +66,7 @@ function fieldExplanation(s,e){
   return `<h4>Superposition at A</h4><div class="equation">${fieldSum(s)}</div><p>${s.charges.map(c=>fieldLabel(c.id)).join(", ")} identify the current source contributions at A. They are vectors, not the Cartesian x/y components. Add signed components, not magnitudes.</p><ol class="field-method"><li>Identify each source: ${s.charges.map(c=>'q'+c.id).join(', ')}.</li><li>Find each distance rᵢ = |𝐫_A − 𝐫ᵢ|.</li><li>Calculate each magnitude |𝐄ᵢ| = k|qᵢ|/rᵢ².</li><li>At A, point away from positive sources and toward negative sources. A zero contribution has no direction.</li><li>Resolve each vector: 𝐄ᵢ = kqᵢ(𝐫_A − 𝐫ᵢ)/rᵢ³.</li><li>Add x components: Eᴿₓ = ${e.contributions.map(v=>'('+signed(v.x)+')').join(' + ')} = ${fmt(e.x,'N/C')}.</li><li>Add y components: Eᴿᵧ = ${e.contributions.map(v=>'('+signed(v.y)+')').join(' + ')} = ${fmt(e.y,'N/C')}.</li><li>Find |𝐄ᴿ| = √(Eᴿₓ² + Eᴿᵧ²) and θᴿ = atan2(Eᴿᵧ, Eᴿₓ). ${e.magnitude===0?'Eᴿ = 0 N/C; there is no resultant direction.':`${fmt(e.magnitude,'N/C')}, ${fieldAngle(e)}.`}</li></ol>`;
 }
 function render(){
-  cancelAnimationFrame(raf);states.forEach((s,i)=>{if(i!==tab)s.playing=false;});
+  states[3].playing=false;lastTime=0;cancelAnimationFrame(raf);raf=0;states.forEach((s,i)=>{if(i!==tab)s.playing=false;});
   const s=states[tab],c=s.charges.find(x=>x.id===s.selected),open=Object.fromEntries([...app.querySelectorAll('details[id]')].map(x=>[x.id,x.open]));
   if(tab===2&&open['equipotential-working']!==undefined)s.equipotentialWorkingOpen=open['equipotential-working'];
   if(innerWidth>=1120&&open.calculations===undefined)open.calculations=true;
@@ -75,25 +78,25 @@ function render(){
       <section class="workspace card" aria-label="Interactive simulation">
         <div class="canvas-bar"><span><i class="status-dot"></i> LIVE WORKSPACE</span><button id="reset" title="Restore current preset">↺ <span>Reset</span></button></div>
         <div class="canvas-wrap"><canvas id="scene" aria-label="${names[tab]} diagram; use the object buttons or exact coordinate controls to move charges and probes."></canvas><div id="object-targets"></div></div>${tab===2?potentialLayers(s):''}
-        <div class="legend">${tab===2?potentialLegend(s):tab===0?'<span class="positive">● + charge</span><span class="negative">● − charge</span><span class="result">➜ resultant</span><span>➜ individual</span>':tab===3?'<span class="result">➜ electric force</span><span>➜ gravity (if on)</span><span>⋯ trajectory</span>':'<span class="positive">● + source</span><span class="negative">● − source</span><span class="result">⊕ probe A</span>'+(tab===2?'<span class="purple">⊕ probe B</span>':'')}</div>
-        <div id="live-strip" class="live-strip" role="status" aria-live="polite" aria-atomic="true"></div><div id="quick-controls"></div>${tab===1?fieldControls(s):tab===2?snapControls(s):''}
+        <div class="legend">${tab===3?motionLegend(s):tab===2?potentialLegend(s):tab===0?'<span class="positive">● + charge</span><span class="negative">● − charge</span><span class="result">➜ resultant</span><span>➜ individual</span>':tab===3?'<span class="result">➜ electric force</span><span>➜ gravity (if on)</span><span>⋯ trajectory</span>':'<span class="positive">● + source</span><span class="negative">● − source</span><span class="result">⊕ probe A</span>'+(tab===2?'<span class="purple">⊕ probe B</span>':'')}</div>
+        <div id="live-strip" class="live-strip" role="status" aria-live="polite" aria-atomic="true"></div>${tab===3?motionStatusMarkup():''}<div id="quick-controls"></div>${tab===1?fieldControls(s):tab===2?snapControls(s):''}
         <p class="canvas-note">${tab===2?'Contours in volts · 2D cross-sections of 3D equipotential surfaces.':'Arrow lengths are scaled for visibility; numerical magnitudes are exact.'}</p>
       </section>
       <aside class="controls card" aria-label="Simulation controls"><div class="panel-heading"><h3>Experiment controls</h3><span>ADJUST & OBSERVE</span></div>
       ${tab===2&&isPlates(s)?plateControls(s,num,fmt):`<label class="select-label" for="preset">${tab===3?'Experiment':'Arrangement'}<select id="preset">${options(tab===3?motionPresets:chargePresets,tab===3?s.experiment:s.preset)}</select></label>`}
       ${tab===2&&isPlates(s)?'':tab===3?`<div class="playback"><button id="play" class="primary">${s.playing?'Ⅱ Pause':'▶ Play'}</button><button id="step">Step +0.01 s</button></div><label class="select-label" for="speed">Playback speed<select id="speed"><option value=".25" ${s.speed===.25?'selected':''}>0.25× · slow</option><option value="1" ${s.speed===1?'selected':''}>1×</option><option value="2" ${s.speed===2?'selected':''}>2×</option></select></label>`:`<label class="select-label" for="selected">Selected ${tab===0?'force target':'source'}<select id="selected">${s.charges.map(x=>`<option value="${x.id}" ${s.selected===x.id?'selected':''}>q${x.id} · ${fmt(x.q*1e6)} μC</option>`).join('')}</select></label><label class="range-label" for="charge-range">Charge <output id="charge-output">${fmt(c.q*1e6)} μC</output><input id="charge-range" type="range" min="-5" max="5" step="0.1" value="${c.q*1e6}"></label><div class="button-row"><button id="add" ${s.charges.length>=4?'disabled':''}>＋ Add charge</button><button id="remove" ${s.charges.length<=1?'disabled':''}>− Remove</button></div>`}
-      <div id="primary-control-home"></div><div class="mobile-actions"><button data-open="calculations">Calculations</button><button class="accent" data-open="challenge-panel">Challenge ↗</button></div>
+      ${tab===3?motionPlateControls(s,num):''}<div id="primary-control-home"></div><div class="mobile-actions"><button data-open="calculations">Calculations</button><button class="accent" data-open="challenge-panel">Challenge ↗</button></div>
       <details id="settings" ${open.settings?'open':''}><summary>Settings & precise values</summary><div class="detail-body">
-      ${tab===2&&isPlates(s)?'':tab===3?motionSettings(s):`<div class="number-grid">${num('charge-number','Charge (μC)',c.q*1e6,-5,5)}${num('charge-x','Source x (m)',c.x,-.25,.25)}${num('charge-y','Source y (m)',c.y,-.22,.22)}</div><button id="reset-selected">Reset selected source</button><button id="clear">Keep selected source only</button>`}
+      ${tab===2&&isPlates(s)?'':tab===3?motionSettings(s,num):`<div class="number-grid">${num('charge-number','Charge (μC)',c.q*1e6,-5,5)}${num('charge-x','Source x (m)',c.x,-.25,.25)}${num('charge-y','Source y (m)',c.y,-.22,.22)}</div><button id="reset-selected">Reset selected source</button><button id="clear">Keep selected source only</button>`}
       ${tab===1||tab===2?`<div class="number-grid">${num('probe-x','Probe A x (m)',s.probe.x,-.25,.25)}${num('probe-y','Probe A y (m)',s.probe.y,-.22,.22)}${tab===2?num('b-x','Probe B x (m)',s.b.x,-.25,.25)+num('b-y','Probe B y (m)',s.b.y,-.22,.22):''}${num('test-charge','Test charge (nC)',s.testQ*1e9,-100,100)}</div>`:''}
       ${tab===2&&!isPlates(s)?`<label class="select-label" for="potential-mode">Potential example<select id="potential-mode"><option value="point" ${!s.uniform?'selected':''}>Point charges</option><option value="uniform" ${s.uniform?'selected':''}>Ideal uniform field</option></select></label>${num('uniform-e','Uniform Eᵧ (V/m)',s.uniformE,-50000,50000)}`:''}
-      <fieldset><legend>Diagram layers</legend>${tab===0?check('components','Vector components',s)+check('fbd','Free-body diagram at origin',s):tab===1?check('lines','Field lines',s)+check('arrows','Field-line direction arrows',s)+check('grid','Vector grid',s):tab===2?(isPlates(s)?'<p class="small">Use the line toggles below the diagram.</p>':check('heat','Potential colour map',s)+check('overlay','Electric field at A',s)+check('grid','Field vector grid (with overlay)',s)):check('trace','Trajectory trace',s)}</fieldset>
+      <fieldset><legend>Diagram layers</legend>${tab===0?check('components','Vector components',s)+check('fbd','Free-body diagram at origin',s):tab===1?check('lines','Field lines',s)+check('arrows','Field-line direction arrows',s)+check('grid','Vector grid',s):tab===2?(isPlates(s)?'<p class="small">Use the line toggles below the diagram.</p>':check('heat','Potential colour map',s)+check('overlay','Electric field at A',s)+check('grid','Field vector grid (with overlay)',s)):check('showAcceleration','Show Acceleration Vector',s)+check('trace','Trajectory trace',s)}</fieldset>
       <label class="range-label" for="zoom">Zoom <output id="zoom-output">${s.zoom.toFixed(1)}×</output><input id="zoom" type="range" min=".7" max="2" step=".1" value="${s.zoom}"></label></div></details><p id="input-error" class="error" role="alert"></p>
       <details id="guided" ${open.guided?'open':''}><summary>Guided investigations <span class="count">3</span></summary><div class="detail-body"><label for="guide">Choose an investigation</label><select id="guide">${investigations[tab].map((g,i)=>`<option value="${i}" ${s.guide===i?'selected':''}>${g[0]}</option>`).join('')}</select><p id="guide-text">${investigations[tab][s.guide][2]}</p><p class="workflow">Predict → Simulate → Observe → Explain</p><button id="load-guide">Load investigation</button><div id="zero-status"></div>${tab===2?equipotentialActivity(open)+fieldEquipotentialActivity(open):''}</div></details>
       </aside>
       <aside class="learning" aria-label="Calculations and challenges"><details id="calculations" class="card" ${open.calculations?'open':''}><summary>Calculations <span class="summary-tag">LIVE</span></summary><div id="calculation-body" class="detail-body"></div></details>
       ${tab===1?`<details id="individual-field-panel" class="card field-breakdown" ${s.individualFields?'':'hidden'} ${open['individual-field-panel']?'open':''}><summary>Individual Electric Fields</summary><div id="individual-field-body" class="detail-body"></div></details>`:''}
-      <details id="challenge-panel" class="card" ${open['challenge-panel']?'open':''}><summary>Challenge <span class="summary-tag">PREDICT FIRST</span></summary><div class="detail-body"><label for="challenge-select">Choose a question</label><select id="challenge-select">${(tab===2&&isPlates(s)?plateChallenges:challenges[tab]).map((q,i)=>`<option value="${i}" ${s.challenge===i?'selected':''}>${q.title}</option>`).join('')}</select><p id="challenge-question"></p><label for="prediction">Your prediction <span id="answer-unit"></span></label><input id="prediction" type="text" autocomplete="off" placeholder="Predict before revealing" value="${s.prediction.replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;')}"><div class="button-row"><button id="check-answer" class="primary">Check & explain</button><button id="hint">Hint</button></div><p id="hint-text" class="hint" hidden></p><div id="feedback" role="status"></div><p class="small">Numbers: enter the displayed unit, e.g. 4.49e5. Tolerance: ±2% or 10⁻¹⁰ near zero. Answers update when you edit the experiment.</p><button class="close-panel" data-close="challenge-panel">Close challenge</button></div></details>
+      <details id="challenge-panel" class="card" ${open['challenge-panel']?'open':''}><summary>Challenge <span class="summary-tag">PREDICT FIRST</span></summary><div class="detail-body"><label for="challenge-select">Choose a question</label><select id="challenge-select">${(tab===2&&isPlates(s)?plateChallenges:tab===3?motionChallenges(s):challenges[tab]).map((q,i)=>`<option value="${i}" ${s.challenge===i?'selected':''}>${q.title}</option>`).join('')}</select><p id="challenge-question"></p><label for="prediction">Your prediction <span id="answer-unit"></span></label><input id="prediction" type="text" autocomplete="off" placeholder="Predict before revealing" value="${s.prediction.replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;')}"><div class="button-row"><button id="check-answer" class="primary">Check & explain</button><button id="hint">Hint</button></div><p id="hint-text" class="hint" hidden></p><div id="feedback" role="status"></div><p class="small">Numbers: enter the displayed unit, e.g. 4.49e5. Tolerance: ±2% or 10⁻¹⁰ near zero. Answers update when you edit the experiment.</p><button class="close-panel" data-close="challenge-panel">Close challenge</button></div></details>
       <div class="learning-note"><span>THE PHYSICS NOTE</span><p>${['Forces add as vectors. A zero resultant can hide several nonzero individual forces.','The field describes the sources. Changing the test charge changes its force, not the field.','Potential adds as a scalar. Zero field does not imply zero potential.','A balanced particle can keep moving. Dynamic equilibrium requires nonzero constant velocity.'][tab]}</p></div></aside>
     </div></div>`;
   const primary=tab===2&&isPlates(s)?null:document.querySelector('.controls '+(tab===3?'.playback':'.range-label'));
@@ -101,7 +104,6 @@ function render(){
   bind();update();
 }
 function placeQuickControls(){const el=document.getElementById('primary-adjustment');if(el)document.getElementById(innerWidth<1120?'quick-controls':'primary-control-home').append(el);}
-function motionSettings(s){const m=s.motion;return `<div class="number-grid">${num('m-voltage','Vbottom − Vtop (V)',m.voltage,-2000,2000)}${num('m-d','Separation (m)',m.d,.005,.2)}${num('m-q','Particle q (nC)',m.q*1e9,-100,100)}${num('m-mass','Mass (mg)',m.mass*1e6,.001,1000)}${num('m-x0','Initial x (m)',m.x0,-.2,.2)}${num('m-y0','Initial y (m)',m.y0,-.09,.09)}${num('m-vx','Initial vₓ (m/s)',m.vx,-10,10)}${num('m-vy','Initial vᵧ (m/s)',m.vy,-10,10)}</div><label class="check"><input id="gravity" type="checkbox" ${m.gravity?'checked':''}>Include gravity (−9.81 m/s²)</label><p class="small">Edit vₓ and vᵧ for any launch direction. Parameter edits reset the clock. +y points upward. Plates absorb particles on impact.</p>`;}
 function bind(){
   const s=states[tab];const on=(id,event,fn)=>document.getElementById(id)?.addEventListener(event,fn);
   on('preset','change',e=>{if(tab===2){clearAttachments(s);s.samePotentialDemo=false;}tab===3?loadExperiment(s,e.target.value):loadPreset(s,e.target.value);s.revealed=false;render();});
@@ -122,7 +124,7 @@ function bind(){
   on('remove','click',()=>{if(s.charges.length<=1)return;s.charges=s.charges.filter(c=>c.id!==s.selected);s.selected=s.charges[0].id;render();});
   on('clear','click',()=>{s.charges=s.charges.filter(c=>c.id===s.selected);render();});
   on('reset-selected','click',()=>{const original=chargePresets[s.preset].charges.find(c=>c.id===s.selected);if(!original){showError('This source was added after the preset. Use Reset to restore the arrangement.');return;}const clone=structuredClone(s.charges);Object.assign(clone.find(c=>c.id===s.selected),original);try{validateCharges(clone);if(tab===2)validatePotentialProbes({...s,charges:clone});s.charges=clone;render();}catch(e){showError(e.message);}});
-  for(const id of ['charge-range','charge-number','charge-x','charge-y','probe-x','probe-y','b-x','b-y','test-charge','uniform-e',...['voltage','d','q','mass','x0','y0','vx','vy'].map(x=>'m-'+x)]){
+  for(const id of ['charge-range','charge-number','charge-x','charge-y','probe-x','probe-y','b-x','b-y','test-charge','uniform-e',...['voltage','d','L','q','mass','x0','y0','vx','vy','externalX','externalY','entry-speed'].map(x=>'m-'+x)]){
     on(id,id==='charge-range'?'input':'change',e=>{
       const input=e.target,n=Number(input.value),old=structuredClone(s);
       try{
@@ -134,7 +136,16 @@ function bind(){
         else if(id.startsWith('b-'))s.b[id.slice(-1)]=n;
         else if(id==='test-charge')s.testQ=n*1e-9;
         else if(id==='uniform-e')s.uniformE=n;
-        else if(id.startsWith('m-')){const key=id.slice(2);s.motion[key]=n*(key==='q'?1e-9:key==='mass'?1e-6:1);validateMotion(s.motion);s.time=0;s.playing=false;document.getElementById('play').textContent='▶ Play';cancelAnimationFrame(raf);}
+        else if(id.startsWith('m-')){
+          const key=id.slice(2);
+          if(key==='entry-speed'){
+            const g=motionGeometry(s.motion),v=g.local({x:s.motion.vx,y:s.motion.vy});
+            const next=g.world(s.experiment==='parallel'?v.u:n,s.experiment==='parallel'?n:v.n);s.motion.vx=next.x;s.motion.vy=next.y;
+          }else s.motion[key]=n*(key==='q'?1e-9:key==='mass'||key.startsWith('external')?1e-6:1);
+          if(key==='d'||key==='L')restoreMotionStart(s.motion);
+          validateMotion(s.motion);cancelAnimationFrame(raf);raf=0;lastTime=0;resetMotionClock(s,'Parameters changed. Press Play to start.');
+          if(key==='L')s.zoom=1;
+        }
         validateCharges(s.charges);if(tab===2){if(id.startsWith('probe-')||id.startsWith('b-'))releaseProbe(s,id.startsWith('probe-')?'probe':'b',false);reconcileAttachments(s,potentialView());validatePotentialProbes(s);}showError('');input.removeAttribute('aria-invalid');syncControls();s.revealed=false;update();
       }catch(err){Object.assign(s,old);showError(err.message);input.setAttribute('aria-invalid','true');}
     });
@@ -143,17 +154,29 @@ function bind(){
   on('individual-fields','change',e=>{s.individualFields=e.target.checked;update();});
   on('field-vector-key','click',e=>{const button=e.target.closest('[data-field-vector]');if(!button)return;s.fieldFocus=button.dataset.fieldVector;for(const el of button.parentElement.children)el.setAttribute('aria-pressed',String(el===button));scheduleDraw();});
   on('potential-mode','change',e=>{const previous=s.uniform;s.uniform=e.target.value==='uniform';try{validatePotentialProbes(s);}catch(error){s.uniform=previous;e.target.value=previous?'uniform':'point';showError(error.message);return;}clearAttachments(s,'Potential model changed. Probes released.');s.revealed=false;update();});
-  on('gravity','change',e=>{s.motion.gravity=e.target.checked;s.time=0;s.playing=false;render();});
+  on('gravity','change',e=>{s.motion.gravity=e.target.checked;resetMotionClock(s,'Gravity changed; external forces are unchanged.');render();});
   on('zoom','input',e=>{s.zoom=Number(e.target.value);document.getElementById('zoom-output').textContent=s.zoom.toFixed(1)+'×';scheduleDraw();});
   on('speed','change',e=>s.speed=Number(e.target.value));
-  on('play','click',()=>{s.playing=!s.playing;document.getElementById('play').textContent=s.playing?'Ⅱ Pause':'▶ Play';lastTime=0;if(s.playing)raf=requestAnimationFrame(animate);else cancelAnimationFrame(raf);});
-  on('step','click',()=>{s.playing=false;cancelAnimationFrame(raf);document.getElementById('play').textContent='▶ Play';s.time+=.01;s.revealed=false;update();});
+  on('motion-reverse','click',()=>{s.motion.voltage=-s.motion.voltage;restoreMotionStart(s.motion);resetMotionClock(s,'Polarity reversed. External force unchanged; press Play to restart.');render();});
+  on('motion-orientation','change',e=>{orientMotion(s.motion,e.target.value,{equilibrium:s.experiment==='equilibrium'});s.zoom=1;resetMotionClock(s,s.experiment==='equilibrium'?'Orientation adapted. The displayed external force balances the electric force and weight.':'Orientation adapted. Gravity remains downward.');render();});
+  on('motion-length','input',e=>{s.motion.L=Number(e.target.value);restoreMotionStart(s.motion);s.zoom=1;resetMotionClock(s,'Plate length changed. Field magnitude is unchanged.');cancelAnimationFrame(raf);raf=0;lastTime=0;syncMotionControls(s);update();});
+  on('motion-rebalance','click',()=>{rebalanceMotion(s.motion);resetMotionClock(s,'External force explicitly set to balance the electric force and weight.');render();});
+  on('motion-limit','change',e=>{const value=Number(e.target.value);if(!e.target.value.trim()||!Number.isFinite(value)||value<1||value>3600){showError('Enter a time limit from 1 to 3600 s.');return;}s.timeLimit=value;resetMotionClock(s,'Time limit changed.');render();});
+  on('motion-replay','click',()=>{resetMotionClock(s);render();});
+  on('play','click',()=>{
+    cancelAnimationFrame(raf);raf=0;lastTime=0;
+    if(s.playing){s.playing=false;s.playbackStatus='Paused';update();return;}
+    if(s.completion)resetMotionClock(s);
+    s.playing=true;advanceMotion(s,s.time,motionView());update();
+    if(s.playing)raf=requestAnimationFrame(animate);
+  });
+  on('step','click',()=>{s.playing=false;cancelAnimationFrame(raf);raf=0;lastTime=0;advanceMotion(s,s.time+.01,motionView());s.revealed=false;update();});
   on('guide','change',e=>{s.guide=Number(e.target.value);document.getElementById('guide-text').textContent=investigations[tab][s.guide][2];update();});
   on('load-guide','click',()=>{if(tab===2&&isPlates(s)){const guide=s.guide;states[2]=potentialModels.point;states[2].guide=guide;render();document.getElementById('load-guide').click();return;}if(tab===2){clearAttachments(s);s.samePotentialDemo=false;}const key=investigations[tab][s.guide][1];if(tab===3)loadExperiment(s,key);else if(key==='uniform'){s.uniform=true;s.probe={x:0,y:0};s.b={x:0,y:.1};}else loadPreset(s,key);s.revealed=false;render();});
   on('challenge-select','change',e=>{s.challenge=Number(e.target.value);s.revealed=false;s.prediction='';document.getElementById('prediction').value='';document.getElementById('hint-text').hidden=true;updateChallenge();});
   on('prediction','input',e=>{s.prediction=e.target.value;s.revealed=false;document.getElementById('feedback').innerHTML='';});
   on('check-answer','click',()=>{s.revealed=true;updateChallenge();});
-  on('hint','click',()=>{const p=document.getElementById('hint-text');p.textContent=(tab===2&&isPlates(s)?plateChallenges:challenges[tab])[s.challenge].hint;p.hidden=!p.hidden;});
+  on('hint','click',()=>{const p=document.getElementById('hint-text');p.textContent=(tab===2&&isPlates(s)?plateChallenges:tab===3?motionChallenges(s):challenges[tab])[s.challenge].hint;p.hidden=!p.hidden;});
   document.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>{const el=document.getElementById(b.dataset.open);el.open=!el.open;if(el.open)el.scrollIntoView({block:'nearest',behavior:'instant'});}));
   document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>{document.getElementById(b.dataset.close).open=false;document.querySelector(`[data-open="${b.dataset.close}"]`)?.focus();}));
   on('theme-toggle','change',e=>{document.documentElement.dataset.theme=e.target.checked?'dark':'light';scheduleDraw();});
@@ -166,13 +189,14 @@ function bind(){
   setupPointers();
 }
 function showError(message){const e=document.getElementById('input-error');if(e)e.textContent=message;}
-function syncControls(){const s=states[tab],c=s.charges.find(c=>c.id===s.selected);for(const [id,value] of Object.entries({'charge-range':c.q*1e6,'charge-number':c.q*1e6,'charge-x':c.x,'charge-y':c.y,'probe-x':s.probe.x,'probe-y':s.probe.y,'b-x':s.b.x,'b-y':s.b.y})){const el=document.getElementById(id);if(el&&document.activeElement!==el)el.value=tab===2&&/^(probe|b|charge)-(x|y)$/.test(id)?value:Number(value.toPrecision(8));}const out=document.getElementById('charge-output');if(out)out.textContent=fmt(c.q*1e6)+' μC';}
+function syncControls(){const s=states[tab],c=s.charges.find(c=>c.id===s.selected);for(const [id,value] of Object.entries({'charge-range':c.q*1e6,'charge-number':c.q*1e6,'charge-x':c.x,'charge-y':c.y,'probe-x':s.probe.x,'probe-y':s.probe.y,'b-x':s.b.x,'b-y':s.b.y})){const el=document.getElementById(id);if(el&&document.activeElement!==el)el.value=tab===2&&/^(probe|b|charge)-(x|y)$/.test(id)?value:Number(value.toPrecision(8));}const out=document.getElementById('charge-output');if(out)out.textContent=fmt(c.q*1e6)+' μC';if(tab===3)syncMotionControls(s);}
 function scheduleDraw(){if(framePending)return;framePending=true;requestAnimationFrame(()=>{framePending=false;drawScene();});}
 function drawScene(){const canvas=document.getElementById('scene');if(!canvas)return;const objects=draw(canvas,states[tab],tab),host=document.getElementById('object-targets');
   // Retain focused buttons while moving them; canvas provides the visible symbols.
   const keys=new Set(objects.map(o=>o.key));for(const el of host.children)if(!keys.has(el.dataset.key))el.remove();
   for(const o of objects){let el=[...host.children].find(x=>x.dataset.key===o.key);if(!el){el=document.createElement('button');el.className='object-target';el.dataset.key=o.key;el.addEventListener('click',()=>{if(!['probe','b'].includes(o.key)&&states[tab].selected!==o.key){states[tab].selected=o.key;render();}});el.addEventListener('keydown',e=>{const d={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,1],ArrowDown:[0,-1]}[e.key];if(!d)return;e.preventDefault();const s=states[tab],point=['probe','b'].includes(o.key)?s[o.key]:s.charges.find(c=>c.id===o.key);movePoint(point,point.x+d[0]*(e.shiftKey?.001:.005),point.y+d[1]*(e.shiftKey?.001:.005));});host.append(el);}el.style.left=o.x+'px';el.style.top=o.y+'px';el.setAttribute('aria-label',`${o.label}, x ${o.point.x.toFixed(3)} metres, y ${o.point.y.toFixed(3)} metres. Use arrow keys to move.`);}
 }
+function motionView(){const rect=document.getElementById('scene').getBoundingClientRect();return viewport(rect.width,rect.height,states[3],3);}
 function potentialView(){const rect=document.getElementById('scene').getBoundingClientRect();return viewport(rect.width,rect.height,states[2],2);}
 function movePoint(point,x,y){
   const s=states[tab],old={x:point.x,y:point.y},target={x:Math.max(-.25,Math.min(.25,x)),y:Math.max(-.22,Math.min(.22,y))};
@@ -221,21 +245,27 @@ function update(){
       else html+=`<h4>Resultant electric field</h4><div class="equation">E = &Sigma; kq&#x2C7C;(r &minus; r&#x2C7C;)/r&#x2C7C;&sup3;</div><p>E_x = ${fmt(e.x,'N/C')}; E_y = ${fmt(e.y,'N/C')}. Continuous field lines follow the resultant field from higher to lower potential. They cross smooth equipotentials at 90&deg; wherever E is nonzero; at an exact field null there is no field direction.</p>`;
       const workingOpen=body.querySelector('#equipotential-working')?.open??s.equipotentialWorkingOpen??false;
       html+=movementWorking(s,c,fmt,workingOpen);
-    }else{const c=s.motion,m=motionAt(c,s.time),initial=motionAt(c,0),ey=uniformField(c.voltage,c.d),fe=c.q*m.ey,fg=c.gravity?-c.mass*G:0;
-      if(m.status==='Plate impact'){s.playing=false;cancelAnimationFrame(raf);document.getElementById('play').textContent='▶ Play';s.time=m.time;}
-      strip.innerHTML=stat('Time',fmt(m.time,'s'))+stat('Acceleration aᵧ',fmt(m.ay,'m/s²'));
-      html=`<h4>1 · Given quantities</h4><p>q = ${fmt(c.q,'C')}; m = ${fmt(c.mass,'kg')}; ΔV = Vbottom − Vtop = ${fmt(c.voltage,'V')}; d = ${fmt(c.d,'m')}.<br>r₀ = (${fmt(c.x0)}, ${fmt(c.y0)}) m; v₀ = (${fmt(c.vx)}, ${fmt(c.vy)}) m/s.</p>`+equation('2 · Field, force and acceleration','|E| = |ΔV| / d<br>Eᵧ = (Vbottom − Vtop) / d<br>aᵧ = (qEᵧ + F_gᵧ) / m',`Inside Eᵧ = (${fmt(c.voltage)})/(${fmt(c.d)}) = ${fmt(ey,'V/m')}. ${ey>0?'Bottom + → top −, upward.':ey<0?'Top + → bottom −, downward.':'No plate field.'}<br>At the particle: F_eᵧ = ${fmt(fe,'N')}; F_gᵧ = ${fmt(fg,'N')}.<br>Initial aᵧ = ${fmt(initial.ay,'m/s²')}; current aᵧ = ${fmt(m.ay,'m/s²')}.`)+equation('3 · Motion in each segment','𝐯(t) = 𝐯₀ + 𝐚t<br>𝐫(t) = 𝐫₀ + 𝐯₀t + ½𝐚t²',`Launch segment: y = (${fmt(c.y0)}) + (${fmt(c.vy)})t + ½(${fmt(initial.ay)})t².<br>Events split the path analytically; field force stops at x = ±0.150 m.`)+`<h4>4 · Instant measurements</h4><p>t = ${fmt(m.time,'s')} · ${m.status}<br>x = ${fmt(m.x,'m')}; y = ${fmt(m.y,'m')}<br>Δx = ${fmt(m.x-c.x0,'m')}; Δy = ${fmt(m.y-c.y0,'m')}<br>vₓ = ${fmt(m.vx,'m/s')}; vᵧ = ${fmt(m.vy,'m/s')}<br>|v| = ${fmt(Math.hypot(m.vx,m.vy),'m/s')}</p><h4>5 · Interpretation</h4><p>${m.status==='Plate impact'?'Absorbing plate impact: the particle stops; the plate supplies the contact force.':Math.abs(m.ay)<1e-9?(Math.hypot(m.vx,m.vy)>1e-9?'Zero acceleration with nonzero velocity: dynamic equilibrium in this region.':'Zero acceleration and velocity: stationary equilibrium.'):'A nonzero resultant force changes the vertical velocity. Opposing velocity and acceleration first slows the particle, then can reverse it.'}</p><p class="small">No fringing fields. Electric force is zero outside the finite plate region; gravity continues if enabled. Playback runs at 0.1 simulated seconds per real second at 1×; speed changes the clock only. On impact, contact absorbs the particle.</p>`;
+    }else{
+      const m=s.motionResult??advanceMotion(s,s.time,motionView());
+      if(s.completion){cancelAnimationFrame(raf);raf=0;lastTime=0;}
+      strip.innerHTML=stat('Time',fmt(m.time,'s'))+stat('Acceleration |a|',fmt(Math.hypot(m.ax,m.ay),'m/s²'));
+      html=motionWorking(s,m,fmt);updateMotionStatus(s,m,fmt);
+
     }
     body.innerHTML=html+constants;
   }catch(e){if(tab===1)updateIndividualFields(s,null,e.message);strip.innerHTML=`<p class="error">${e.message}</p>`;body.innerHTML=`<p class="error">${e.message}</p>`;}
   updateChallenge();scheduleDraw();
 }
 function contributionTable(v,symbol,unit,s,target){return `<table><caption>Component values in ${unit}; r in m</caption><thead><tr><th>Source</th><th>r</th><th>${symbol}ₓ</th><th>${symbol}ᵧ</th></tr></thead><tbody>${v.contributions.map(part=>`<tr><td>q${part.id}</td><td>${fmt(part.r)}</td><td>${fmt(part.x)}</td><td>${fmt(part.y)}</td></tr>`).join('')}</tbody></table>`+v.contributions.map(part=>{const source=s.charges.find(c=>c.id===part.id);return `<p class="small">q${source.id} = ${fmt(source.q,'C')} at (${fmt(source.x)}, ${fmt(source.y)}) m.<br>${symbol}ₓ${source.id} = k${symbol==='F'?'('+fmt(target.q)+')':''}(${fmt(source.q)})(${fmt(target.x-source.x)}) / (${fmt(part.r)})³ = ${fmt(part.x,unit)}.<br>${symbol}ᵧ${source.id} uses Δy = ${fmt(target.y-source.y,'m')}, giving ${fmt(part.y,unit)}.</p>`;}).join('');}
-function updateChallenge(){const s=states[tab],q=(tab===2&&isPlates(s)?plateChallenges:challenges[tab])[s.challenge];document.getElementById('challenge-question').textContent=q.question;document.getElementById('answer-unit').textContent=q.unit?'('+q.unit+')':'';const f=document.getElementById('feedback');if(!s.revealed){f.innerHTML='';return;}try{const answer=q.answer(s),passed=checkAnswer(s.prediction,answer);f.className=passed?'feedback success':'feedback';f.innerHTML=`<b>${passed?'Correct prediction.':'Compare your prediction.'}</b><p>Current answer: <strong>${typeof answer==='string'?answer:fmt(answer,q.unit)}</strong></p><p>${q.explain}</p><p class="small">Use the live Calculations panel for the numerical substitution and working.</p>`;}catch(e){f.className='feedback';f.textContent=e.message;}}
-function animate(now){const s=states[tab];if(!s.playing||tab!==3||document.hidden)return;if(lastTime)s.time+=Math.min((now-lastTime)/1000,.05)*.1*s.speed;lastTime=now;s.revealed=false;update();if(s.playing)raf=requestAnimationFrame(animate);}
+function updateChallenge(){const s=states[tab],q=(tab===2&&isPlates(s)?plateChallenges:tab===3?motionChallenges(s):challenges[tab])[s.challenge];document.getElementById('challenge-question').textContent=q.question;document.getElementById('answer-unit').textContent=q.unit?'('+q.unit+')':'';const f=document.getElementById('feedback');if(!s.revealed){f.innerHTML='';return;}try{const answer=q.answer(s),passed=checkAnswer(s.prediction,answer);f.className=passed?'feedback success':'feedback';f.innerHTML=`<b>${passed?'Correct prediction.':'Compare your prediction.'}</b><p>Current answer: <strong>${typeof answer==='string'?answer:fmt(answer,q.unit)}</strong></p><p>${q.explain}</p><p class="small">Use the live Calculations panel for the numerical substitution and working.</p>`;}catch(e){f.className='feedback';f.textContent=e.message;}}
+function animate(now){
+  raf=0;const s=states[3];if(!s.playing||tab!==3||document.hidden)return;
+  if(lastTime)advanceMotion(s,s.time+Math.min((now-lastTime)/1000,.05)*.1*s.speed,motionView());
+  lastTime=now;s.revealed=false;update();if(s.playing)raf=requestAnimationFrame(animate);
+}
 nav.addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b)selectTab(Number(b.dataset.tab));});
 nav.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();selectTab(e.key==='Home'?0:e.key==='End'?3:(tab+(e.key==='ArrowRight'?1:3))%4);});
 document.getElementById('help-button').addEventListener('click',()=>{help=!help;document.getElementById('help-button').setAttribute('aria-expanded',String(help));document.getElementById('help-panel').hidden=!help;});
-document.addEventListener('visibilitychange',()=>{if(document.hidden){states[3].playing=false;cancelAnimationFrame(raf);const b=document.getElementById('play');if(b)b.textContent='▶ Play';}});
-window.addEventListener('resize',()=>{placeQuickControls();scheduleDraw();revealActiveTab();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){states[3].playing=false;states[3].playbackStatus='Paused';cancelAnimationFrame(raf);raf=0;lastTime=0;const b=document.getElementById('play');if(b)b.textContent='▶ Play';if(tab===3)update();}});
+window.addEventListener('resize',()=>{placeQuickControls();if(tab===3&&states[3].playing){advanceMotion(states[3],states[3].time,motionView());update();}scheduleDraw();revealActiveTab();});
 render();

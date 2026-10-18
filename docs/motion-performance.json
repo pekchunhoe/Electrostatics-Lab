@@ -1,0 +1,60 @@
+{
+  "viewport": "390 x 844",
+  "dpr": 2,
+  "canvas": {
+    "width": 364,
+    "height": 371
+  },
+  "measurement": "Analytic motion evaluation plus canvas drawing; 20 warmup and 100 measured frames per case. Desktop Chromium, no CPU throttling.",
+  "results": [
+    {
+      "orientation": "horizontal",
+      "experiment": "rest",
+      "medianMs": 0.2,
+      "p95Ms": 0.3
+    },
+    {
+      "orientation": "horizontal",
+      "experiment": "perpendicular",
+      "medianMs": 0.2,
+      "p95Ms": 0.4
+    },
+    {
+      "orientation": "horizontal",
+      "experiment": "parallel",
+      "medianMs": 0.1,
+      "p95Ms": 0.3
+    },
+    {
+      "orientation": "horizontal",
+      "experiment": "equilibrium",
+      "medianMs": 0.2,
+      "p95Ms": 0.3
+    },
+    {
+      "orientation": "vertical",
+      "experiment": "rest",
+      "medianMs": 0.1,
+      "p95Ms": 0.3
+    },
+    {
+      "orientation": "vertical",
+      "experiment": "perpendicular",
+      "medianMs": 0.1,
+      "p95Ms": 0.3
+    },
+    {
+      "orientation": "vertical",
+      "experiment": "parallel",
+      "medianMs": 0.1,
+      "p95Ms": 0.3
+    },
+    {
+      "orientation": "vertical",
+      "experiment": "equilibrium",
+      "medianMs": 0.1,
+      "p95Ms": 0.2
+    }
+  ],
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 Safari/537.36"
+}

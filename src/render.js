@@ -1,3 +1,4 @@
+import {drawMotion} from './motion-render.js';
 import {fieldLinePaths} from './field-lines.js';
 import {isPlates,plateModel} from './parallel-plates.js';
 import {drawPlates} from './parallel-plates-render.js';
@@ -8,6 +9,12 @@ import {drawSnapHighlights,drawSnapBadges} from './equipotential-render.js';
 export const colors={positive:'#cb5438',negative:'#326db0',field:'#568f89',result:'#087a6b',individual:'#aa7437',text:'#27494e',grid:'#d9e3df',purple:'#7955ad'};
 const layerCache=new WeakMap();
 export function viewport(w,h,s,tab){
+  if(tab===3){
+    const c=s.motion,vertical=c.orientation==='vertical',L=c.L??.3;
+    const spanX=Math.max(vertical?.25:.42,vertical?c.d*1.8:L*1.3,Math.abs(c.x0)*2+.06),spanY=Math.max(vertical?.42:.25,vertical?L*1.3:c.d*1.8,Math.abs(c.y0)*2+.06);
+    const scale=Math.min(w/spanX,h/spanY)*s.zoom;
+    return {w,h,scale,toScreen:p=>({x:w/2+p.x*scale,y:h/2-p.y*scale}),toWorld:p=>({x:(p.x-w/2)/scale,y:(h/2-p.y)/scale})};
+  }
   if(tab===2&&isPlates(s)){
     const horizontal=s.plates.orientation==='horizontal',scale=Math.min(w/(horizontal?.065:.055),h/(horizontal?.060:.070))*s.zoom;
     return {w,h,scale,toScreen:p=>({x:w/2+p.x*scale,y:h/2-p.y*scale}),toWorld:p=>({x:(p.x-w/2)/scale,y:(h/2-p.y)/scale})};
@@ -41,18 +48,8 @@ export function draw(canvas,s,tab){
   text('+x',w-22,h/2-7);text('+y',w/2+6,43);
   }
   if(tab===3){
-    const c=s.motion,E=uniformField(c.voltage,c.d);let m;try{m=motionAt(c,s.time);}catch{return [];}
-    for(const y of [-c.d/2,c.d/2]){const a=p({x:-.15,y}),b=p({x:.15,y});line(a,b,(y<0?E>=0:E<0)?colors.positive:colors.negative,5);for(let x=-.13;x<=.13;x+=.052){const z=p({x,y});text(E===0?'0':((y<0?E>0:E<0)?'+':'−'),z.x-4,z.y+(y>0?-8:18),dark?'#d9e6e1':colors.text,14);}}
-    for(let x=-.11;x<.14;x+=.055)arrow({x,y:-Math.sign(E)*c.d*.28},{x:0,y:E},colors.field,c.d*v.scale*.42,1.4);
-    if(s.trace){ctx.beginPath();ctx.strokeStyle=colors.purple;ctx.lineWidth=2;ctx.setLineDash([3,3]);for(let i=0;i<=100;i++){const a=p(motionAt(c,s.time*i/100));if(i===0)ctx.moveTo(a.x,a.y);else ctx.lineTo(a.x,a.y);}ctx.stroke();ctx.setLineDash([]);}
-    const point=p(m);ctx.beginPath();ctx.arc(point.x,point.y,9,0,Math.PI*2);ctx.fillStyle=c.q<0?colors.negative:colors.positive;ctx.fill();text(c.q===0?'0':c.q>0?'+':'−',point.x-5,point.y+5,'#fff',16);
-    const fe=c.q*m.ey,fg=c.gravity?-c.mass*9.81:0,maxForce=Math.max(Math.abs(fe),Math.abs(fg),1e-30);
-    arrow(m,{x:0,y:fe},colors.result,35*Math.abs(fe)/maxForce,2.5);if(c.gravity)arrow(m,{x:0,y:fg},colors.individual,35*Math.abs(fg)/maxForce,2);
-    arrow(m,{x:m.vx,y:m.vy},colors.purple,38,2);
-    if(Math.hypot(m.vx,m.vy)>1e-10)text('v',point.x+38*m.vx/Math.hypot(m.vx,m.vy)+5,point.y-38*m.vy/Math.hypot(m.vx,m.vy)-5,colors.purple,12);
-    if(Math.abs(fe)>1e-12)text('Fₑ',point.x+5,point.y-Math.sign(fe)*36,colors.result,11);
-    if(c.gravity)text('mg',point.x+5,point.y+43,colors.individual,11);
-    const eLabel=p({x:.125,y:.006});text(m.status,10,20);text('E',eLabel.x,eLabel.y,colors.field,12);text('Plate length = 0.300 m · fringing neglected',10,h-30);
+    if(!s.motionResult)s.motionResult=motionAt(s.motion,s.time);
+    drawMotion(ctx,s,v,dark,{line,text,arrow});
   } else {
     if(!cacheHit&&tab===2&&s.contours&&!isPlates(s)){
       const geometry=contourGeometry(s,v),placedLabels=[];

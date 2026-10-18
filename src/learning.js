@@ -1,3 +1,4 @@
+import {motionGeometry} from './physics.js';
 import {isPlates,plateModel} from './parallel-plates.js';
 import {forceOn,fieldAt,potentialAt,systemEnergy,energyChange,magnitude,motionAt,uniformField,G} from './physics.js';
 // Every answer is evaluated from the current state, after any learner edits.
@@ -16,8 +17,8 @@ export const investigations=[
     ['Uniform-field cross-section','uniform','Switch on the ideal uniform field. Move B upward. Observe parallel contours and the signed relationship ΔV = −EᵧΔy.']
   ],[
     ['From rest to motion','rest','Predict the initial force and acceleration. Play or step forward; a nonzero resultant force changes the velocity.'],
-    ['Launch across the field','perpendicular','Predict the deflection. Compare constant vₓ with changing vᵧ. The trajectory is parabolic inside the plates and straight after exit when gravity is off.'],
-    ['Moving equilibrium','equilibrium','Compare upward qE with downward mg. The balanced particle moves at nonzero constant velocity inside the field. Outside the plates gravity acts alone.']
+    ['Launch across the field','perpendicular','Predict the deflection. Compare tangential and normal motion. Orientation rotates the initial position and velocity. Electric force stops at the open plate end; other displayed forces continue.'],
+    ['Moving equilibrium','equilibrium','For horizontal plates compare electric force with weight. For vertical plates inspect the displayed external balancing force. Reverse polarity to break equilibrium; use Rebalance Forces explicitly to restore it.'],
   ]
 ];
 const task=(title,question,unit,answer,hint,explain)=>({title,question,unit,answer,hint,explain});
@@ -40,12 +41,12 @@ export const challenges=[
     task('Field versus potential','Predict |E| at A. Compare your answer with the potential.','N/C',s=>isPlates(s)?plateModel(s.plates).strength:s.uniform?Math.abs(s.uniformE):magnitude(fieldAt(s.charges,s.probe)),'Potential is a scalar; E is a vector.','For equal positive sources at the midpoint, E = 0 but V = 2kQ/r > 0.'),
     task('System energy','For up to three sources, predict their total system energy.','J',s=>systemEnergy(s.charges),'Use a single, pair or triangle preset.','U = Σᵢ<ⱼ kqᵢqⱼ/rᵢⱼ. Each distinct pair is counted once; this exercise is restricted to three sources.')
   ],[
-    task('Deflection','Predict the initial signed vertical acceleration.','m/s²',s=>motionAt(s.motion,0).ay,'Calculate the resultant force first.','aᵧ = qEᵧ/m − g when gravity is enabled. The sign gives the initial deflection.'),
-    task('Plate field','Predict the signed vertical electric field between the plates.','V/m',s=>uniformField(s.motion.voltage,s.motion.d),'Voltage is V_bottom − V_top.','Eᵧ = (V_bottom − V_top)/d, from higher to lower potential.'),
-    task('Velocity at the clock','Predict the vertical velocity at the current simulation time.','m/s',s=>motionAt(s.motion,s.time).vy,'Use each constant-acceleration segment, stopping at an impact.','vᵧ = vᵧ₀ + aᵧt within each segment. After an absorbing plate impact the particle is at rest.'),
-    task('Displacement at the clock','Predict the vertical displacement from launch at the current time.','m',s=>motionAt(s.motion,s.time).y-s.motion.y0,'The position is measured from the launch point.','Δy = vᵧ₀t + ½aᵧt² within a segment. Segments are joined continuously at the field boundary.'),
+    task('Deflection','Predict the initial signed acceleration along the plate normal.','m/s²',s=>{const m=motionAt(s.motion,0);return motionGeometry(s.motion).local({x:m.ax,y:m.ay}).n;},'Calculate the resultant force first.','aᵧ = qEᵧ/m − g when gravity is enabled. The sign gives the initial deflection.'),
+    task('Plate field','Predict the signed electric field along the plate normal.','V/m',s=>uniformField(s.motion.voltage,s.motion.d),'Voltage is V_bottom − V_top.','Eᵧ = (V_bottom − V_top)/d, from higher to lower potential.'),
+    task('Velocity at the clock','Predict velocity along the plate normal at the current simulation time.','m/s',s=>{const m=motionAt(s.motion,s.time);return motionGeometry(s.motion).local({x:m.vx,y:m.vy}).n;},'Use each constant-acceleration segment, stopping at an impact.','vᵧ = vᵧ₀ + aᵧt within each segment. After an absorbing plate impact the particle is at rest.'),
+    task('Displacement at the clock','Predict normal displacement from launch at the current time.','m',s=>{const m=motionAt(s.motion,s.time),g=motionGeometry(s.motion);return g.local(m).n-g.local({x:s.motion.x0,y:s.motion.y0}).n;},'The position is measured from the launch point.','Δy = vᵧ₀t + ½aᵧt² within a segment. Segments are joined continuously at the field boundary.'),
     task('Balance gravity','For nonzero q, what signed Eᵧ balances gravity?','V/m',s=>{if(s.motion.q===0)throw new RangeError('Choose a nonzero particle charge for equilibrium.');return s.motion.mass*G/s.motion.q;},'Gravity points down; the electric force must point up.','qEᵧ = mg, so Eᵧ = mg/q. Enable gravity and use nonzero velocity for dynamic equilibrium.'),
-    task('Reverse the particle','What would the initial electric force Fᵧ be after reversing q?','N',s=>-s.motion.q*uniformField(s.motion.voltage,s.motion.d),'Electric force reverses; gravity does not.','F_eᵧ′ = −qEᵧ. Dynamic equilibrium is lost if q reverses without also reversing E.')
+    task('Reverse the particle','What would the initial electric force along the normal be after reversing q?','N',s=>-s.motion.q*uniformField(s.motion.voltage,s.motion.d),'Electric force reverses; gravity does not.','F_eᵧ′ = −qEᵧ. Dynamic equilibrium is lost if q reverses without also reversing E.')
   ]
 ];
 export function getPotential(s,p){return isPlates(s)?plateModel(s.plates).potential(p):s.uniform?-s.uniformE*p.y:potentialAt(s.charges,p);}
@@ -53,4 +54,17 @@ export function checkAnswer(input,answer){
   if(typeof answer==='string')return input.trim().toLowerCase()===answer;
   if(!input.trim()||!Number.isFinite(Number(input)))return false;
   return Math.abs(Number(input)-answer)<=Math.max(1e-10,Math.abs(answer)*.02);
+}
+
+export function motionChallenges(s){
+  const items=challenges[3].map(q=>({...q}));
+  items[0].explain='Sum the electric, gravitational and displayed external force vectors, then divide the normal component by mass.';
+  items[1].hint='Signed voltage divided by separation; +normal is upward for horizontal plates and rightward for vertical plates.';
+  items[1].explain='The field points from higher to lower potential. Orientation changes components, not its magnitude.';
+  items[2].explain='Use normal velocity in each constant-acceleration segment, with continuous velocity at field exit.';
+  items[3].explain='Normal displacement uses the initial normal velocity and acceleration in each segment.';
+  if(s.motion.orientation==='vertical'){
+    Object.assign(items[4],{question:'Can the horizontal electric force alone balance downward weight? Answer impossible or possible.',unit:'',answer:()=> 'impossible',hint:'Horizontal and vertical forces cannot cancel each other.',explain:'A vertical plate field is horizontal. Rebalance Forces supplies an explicitly displayed external vector to balance electric force and weight.'});
+  }
+  return items;
 }

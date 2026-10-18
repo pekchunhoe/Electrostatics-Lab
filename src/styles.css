@@ -46,3 +46,15 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .plate-controls .number-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.plate-controls>button{width:100%;margin-top:10px;font-size:12px}.plate-controls details>summary{font-size:12px}
 #field-equipotential-activity{border-top:1px solid var(--border)}#field-equipotential-activity summary{font-size:12px}#field-equipotential-activity button{font-size:12px;max-width:100%}
 [data-theme=dark] .potential-layers + .legend .purple{color:#c7a4ff}
+
+/* Uniform Electric Field: controls and status stay within their existing cards. */
+.motion-plates{margin:10px 0;border-top:1px solid var(--border);padding-top:10px}
+.motion-orientation{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:end}
+.motion-orientation .select-label{margin:0}.motion-orientation button{font-size:12px;padding:7px 5px}
+.motion-plates .number-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:10px}
+.motion-plates .range-label{font-size:12px}.motion-plates output{font-size:11px}
+.motion-status{padding:8px 12px;border-top:1px solid var(--border);font-size:12px;color:var(--green);overflow-wrap:anywhere}
+.motion-status p{margin:4px 0 0}.motion-status p:empty{display:none}.motion-status button{font-size:12px;margin-top:7px;min-height:44px}
+.motion-status [hidden]{display:none}.motion-acceleration-key{color:#a45600}
+[data-theme=dark] .motion-acceleration-key{color:#ffc06b}
+#motion-advanced summary{font-size:12px}#motion-advanced .number-grid{margin-bottom:8px}

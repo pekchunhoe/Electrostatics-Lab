@@ -60,53 +60,114 @@ export function kinematics(r0,v0,a,t) {
   finite(r0.x,r0.y,v0.x,v0.y,a.x,a.y,t);if(t<0)throw new RangeError('Time must be non-negative.');
   return {x:r0.x+v0.x*t+a.x*t*t/2,y:r0.y+v0.y*t+a.y*t*t/2,vx:v0.x+a.x*t,vy:v0.y+a.y*t};
 }
-export function validateMotion(c) {
-  finite(c.q,c.mass,c.voltage,c.d,c.x0,c.y0,c.vx,c.vy);
-  if(c.mass<=0)throw new RangeError('Mass must be greater than zero.');
-  uniformField(c.voltage,c.d);
-  if(Math.abs(c.y0)>=c.d/2 && Math.abs(c.x0)<=.15)throw new RangeError('Initial position must lie between the plates.');
+// Plate-local tangent u and normal n rotate together; gravity stays in world y.
+export function motionGeometry(c){
+  const vertical=(c.orientation??'horizontal')==='vertical',L=c.L??.3;
+  const tangent=vertical?{x:0,y:-1}:{x:1,y:0},normal=vertical?{x:1,y:0}:{x:0,y:1};
+  const local=p=>({u:p.x*tangent.x+p.y*tangent.y,n:p.x*normal.x+p.y*normal.y});
+  const world=(u,n)=>({x:tangent.x*u+normal.x*n,y:tangent.y*u+normal.y*n});
+  const E=uniformField(c.voltage,c.d);
+  return {L,tangent,normal,local,world,field:world(0,E)};
 }
-export function rootsForPosition(p,v,a,target) {
-  if(Math.abs(a)<1e-14)return Math.abs(v)<1e-14?[]:[(target-p)/v];
-  const disc=v*v+2*a*(target-p);
-  if(disc<0)return [];
-  const s=Math.sqrt(disc), h=-.5*(v+(v>=0?s:-s));
+export function motionForces(c,inside=true){
+  const field=inside?motionGeometry(c).field:{x:0,y:0};
+  const electric={x:c.q*field.x,y:c.q*field.y},gravity={x:0,y:c.gravity?-c.mass*G:0},external={x:c.externalX??0,y:c.externalY??0};
+  const net={},acceleration={};
+  for(const axis of ['x','y']){
+    const total=electric[axis]+gravity[axis]+external[axis],scale=Math.max(Math.abs(electric[axis]),Math.abs(gravity[axis]),Math.abs(external[axis]));
+    finite(total,scale);
+    // Only cancel roundoff from summing forces, never small physical forces.
+    net[axis]=Math.abs(total)<=4*Number.EPSILON*scale?0:total;
+    acceleration[axis]=net[axis]/c.mass;finite(acceleration[axis]);
+  }
+  return {field,electric,gravity,external,net,acceleration};
+}
+export function validateMotion(c){
+  finite(c.q,c.mass,c.voltage,c.d,c.x0,c.y0,c.vx,c.vy,c.L??.3,c.externalX??0,c.externalY??0);
+  if(c.mass<=0)throw new RangeError('Mass must be greater than zero.');
+  if((c.L??.3)<=0)throw new RangeError('Plate length must be positive.');
+  if(!['horizontal','vertical'].includes(c.orientation??'horizontal'))throw new RangeError('Choose a valid plate orientation.');
+  const g=motionGeometry(c),p=g.local({x:c.x0,y:c.y0});
+  if(Math.abs(p.n)>=c.d/2&&Math.abs(p.u)<=g.L/2)throw new RangeError('Initial position must lie between the plates or beyond an open end.');
+}
+export function rootsForPosition(p,v,a,target){
+  if(a===0)return v===0?[]:[(target-p)/v];
+  const disc=v*v+2*a*(target-p);if(disc<0)return [];
+  const s=Math.sqrt(disc),h=-.5*(v+(v>=0?s:-s));
   return h===0?[0]:[2*h/a,(p-target)/h];
 }
-// Exact constant-acceleration segments with event times for plate impacts / horizontal exit.
-// x velocity is constant. A particle outside the plate region experiences gravity only.
-export function motionAt(c,t) {
-  validateMotion(c);finite(t);if(t<0)throw new RangeError('Time must be non-negative.');
-  let p={x:c.x0,y:c.y0,vx:c.vx,vy:c.vy},elapsed=0,status='In field',events=[];
-  const gravity=c.gravity?-G:0;
-  // Sum forces first. Cancel only residuals within four machine epsilons of
-  // the larger force (floating-point roundoff, not a physical force cutoff).
-  const acceleration=ey=>{
-    const electric=c.q*ey,weight=c.mass*gravity;finite(electric,weight);
-    const net=electric+weight;finite(net);
-    return Math.abs(net)<=4*Number.EPSILON*Math.max(Math.abs(electric),Math.abs(weight))?0:net/c.mass;
+// Analytic piecewise motion. Field-edge transitions, impacts and optional
+// viewport terminals all use roots of the SAME constant-acceleration segments.
+// bounds already includes the particle's rendered radius in world coordinates.
+// fromTime prevents a resize from retroactively changing elapsed physical time.
+export function motionAt(c,t,{bounds,fromTime=0,maxTime=Infinity,stopStationary=false}={}){
+  validateMotion(c);finite(t,fromTime);
+  if(t<0||fromTime<0||fromTime>t||!(maxTime>0))throw new RangeError('Use non-negative elapsed time and a positive time limit.');
+  if(bounds){finite(bounds.minX,bounds.maxX,bounds.minY,bounds.maxY);if(bounds.minX>=bounds.maxX||bounds.minY>=bounds.maxY)throw new RangeError('Invalid canvas bounds.');}
+  const g=motionGeometry(c),half=g.L/2,end=Math.min(t,Math.max(fromTime,maxTime));
+  let p={x:c.x0,y:c.y0,vx:c.vx,vy:c.vy},elapsed=0,events=[],segments=[];
+  const tangentAcceleration=g.local(motionForces(c,false).acceleration).u;
+  const tangentInside=()=>{
+    const u=g.local(p).u,v=g.local({x:p.vx,y:p.vy}).u;
+    return Math.abs(u)<half||(Math.abs(u)===half&&(u*v<0||(v===0&&u*tangentAcceleration<0)));
   };
-  let horizontalInside=Math.abs(p.x)<.15 || (Math.abs(p.x)===.15 && p.x*p.vx<0);
-  let inside=horizontalInside&&Math.abs(p.y)<c.d/2;
-  for(let i=0;i<5;i++) {
-    const ay=acceleration(inside?uniformField(c.voltage,c.d):0);
-    let dt=t-elapsed,type=null;
-    const boundary=horizontalInside?(p.vx>0?.15:-.15):(p.x<-.15?-.15:.15);
-    const crossing=p.vx===0?Infinity:(boundary-p.x)/p.vx;
-    if(crossing>1e-12 && crossing<=dt){dt=crossing;type='edge';}
-    if(horizontalInside)for(const wall of [-c.d/2,c.d/2])for(const root of rootsForPosition(p.y,p.vy,ay,wall)){
-      if(root>1e-12 && root<=dt){dt=root;type='impact';}
+  let along=tangentInside();
+  const result=(status,forces,extra={})=>{
+    finite(p.x,p.y,p.vx,p.vy,elapsed);
+    return {...p,ax:forces.acceleration.x,ay:forces.acceleration.y,ex:forces.field.x,ey:forces.field.y,time:elapsed,status,events,segments,...extra};
+  };
+  for(let iteration=0;iteration<256;iteration++){
+    const local=g.local(p),inside=along&&Math.abs(local.n)<c.d/2,forces=motionForces(c,inside),a=forces.acceleration;
+    const velocity=g.local({x:p.vx,y:p.vy}),acceleration=g.local(a);
+    let dt=end-elapsed,type=null,side=null,priority=10;
+    const offer=(time,kind,rank,which=null)=>{
+      if(time>=0&&time<=dt&&(time<dt||rank<priority)){dt=time;type=kind;priority=rank;side=which;}
+    };
+    for(const wall of [-half,half])for(const root of rootsForPosition(local.u,velocity.u,acceleration.u,wall)){
+      const speed=velocity.u+acceleration.u*root;
+      if(root>0&&Math.abs(speed)>32*Number.EPSILON*Math.max(Math.abs(velocity.u),Math.abs(acceleration.u*root)))offer(root,'edge',2,wall);
     }
-    const next=kinematics(p,{x:p.vx,y:p.vy},{x:0,y:ay},dt);elapsed+=dt;p=next;
-    if(type==='impact')return {...p,vx:0,vy:0,impactVx:p.vx,impactVy:p.vy,ay:0,ey:0,time:elapsed,status:'Plate impact',events:[...events,{time:elapsed,type}]};
+    for(const wall of [-c.d/2,c.d/2])for(const root of rootsForPosition(local.n,velocity.n,acceleration.n,wall)){
+      const u=local.u+velocity.u*root+.5*acceleration.u*root*root;
+      if(root>0&&Math.abs(u)<=half+16*Number.EPSILON*Math.max(1,half))offer(root,'impact',0,wall);
+    }
+    if(bounds&&elapsed+dt>=fromTime){
+      const begin=Math.max(0,fromTime-elapsed),at=kinematics(p,{x:p.vx,y:p.vy},a,begin);
+      if(at.x<bounds.minX||at.x>bounds.maxX||at.y<bounds.minY||at.y>bounds.maxY)offer(begin,'canvas',1);
+      for(const [axis,min,max] of [['x',bounds.minX,bounds.maxX],['y',bounds.minY,bounds.maxY]]){
+        for(const [wall,sign] of [[min,-1],[max,1]]){
+          if(at[axis]===wall&&(sign*at['v'+axis]>0||(at['v'+axis]===0&&sign*a[axis]>0)))offer(begin,'canvas',1);
+          for(const root of rootsForPosition(p[axis],p['v'+axis],a[axis],wall))if(root>0&&root>=begin&&sign*(p['v'+axis]+a[axis]*root)>0)offer(root,'canvas',1);
+        }
+      }
+    }
+    if(stopStationary&&p.vx===0&&p.vy===0&&a.x===0&&a.y===0&&elapsed>=fromTime)return result('Stationary',forces);
+    if(stopStationary&&p.vx===0&&p.vy===0&&a.x===0&&a.y===0&&elapsed<fromTime&&elapsed+dt>=fromTime)offer(fromTime-elapsed,'stationary',3);
+    const start={...p};p=kinematics(p,{x:p.vx,y:p.vy},a,dt);
+    if(dt>0)segments.push({start:elapsed,end:elapsed+dt,p:start,a:{...a},inside});
+    elapsed+=dt;
+    if(type==='impact'){
+      const contact=g.local(p);Object.assign(p,g.world(contact.u,side));
+      events.push({time:elapsed,type:'impact',side:Math.sign(side)});
+      const impactVx=p.vx,impactVy=p.vy;p.vx=0;p.vy=0;
+      return result('Plate impact',{field:{x:0,y:0},acceleration:{x:0,y:0}},{impactVx,impactVy,plate:c.voltage===0?'uncharged':Math.sign(side)===Math.sign(c.voltage)?'negative':'positive'});
+    }
+    if(type==='canvas'){events.push({time:elapsed,type:'canvas'});return result('Canvas exit',forces);}
+    if(type==='stationary')return result('Stationary',forces);
     if(type==='edge'){
-      horizontalInside=!horizontalInside;inside=horizontalInside&&Math.abs(p.y)<c.d/2;
-      if(horizontalInside&&Math.abs(Math.abs(p.y)-c.d/2)<1e-12)return {...p,vx:0,vy:0,impactVx:p.vx,impactVy:p.vy,ay:0,ey:0,time:elapsed,status:'Plate impact',events:[...events,{time:elapsed,type:'impact'}]};
-      status=inside?'In field':'Outside field';events.push({time:elapsed,type:'edge'});if(elapsed<t-1e-12)continue;
+      const at=g.local(p);Object.assign(p,g.world(side,at.n));
+      const speed=g.local({x:p.vx,y:p.vy}).u;along=side*speed<0;
+      events.push({time:elapsed,type:'edge',entering:along&&Math.abs(at.n)<c.d/2});
+      if(Math.abs(Math.abs(at.n)-c.d/2)<=16*Number.EPSILON*Math.max(1,c.d)){
+        const impactVx=p.vx,impactVy=p.vy;p.vx=0;p.vy=0;
+        events.push({time:elapsed,type:'impact',side:Math.sign(at.n)});
+        return result('Plate impact',{field:{x:0,y:0},acceleration:{x:0,y:0}},{impactVx,impactVy,plate:Math.sign(at.n)===Math.sign(c.voltage)?'negative':'positive'});
+      }
+      if(elapsed<end)continue;
+      const active=along&&Math.abs(at.n)<c.d/2;
+      return result(elapsed>=maxTime?'Time limit':active?'In field':'Outside field',motionForces(c,active));
     }
-    const ey=inside?uniformField(c.voltage,c.d):0;
-    finite(p.x,p.y,p.vx,p.vy,ey,acceleration(ey));
-    return {...p,ay:acceleration(ey),ey,time:t,status:inside?'In field':'Outside field',events};
+    return result(elapsed>=maxTime?'Time limit':inside?'In field':'Outside field',forces);
   }
-  throw new Error('Motion event limit exceeded.');
+  throw new RangeError('Too many boundary events; reduce the simulated time interval.');
 }
