@@ -175,7 +175,7 @@ test('160 kV screenshot residual displays exact zeros while retaining raw engine
   assert.deepEqual(c.display,{dv:0,du:0,work:0});close(c.tolerance,4e-7,1e-18);
   assert.deepEqual(s,before);assert.equal(potentialAt(s.charges,s.b),vb);
   const working=movementWorking(s,c,(value,unit)=>`${value} ${unit}`,true);
-  for(const text of ['V_A = V_B (verified equipotential)','ΔV = 0 V','ΔU = 0 J','W_field = 0 J'])assert.ok(working.includes(text));
+  for(const text of ['Verified equipotential.',String.raw`\Delta V=0\;\mathrm{V}`,String.raw`\Delta U=0\;\mathrm{J}`,String.raw`W_{\mathrm{field}}=0\;\mathrm{J}`])assert.ok(working.includes(text));
   assert.ok(!working.includes(String(c.dv)));
 });
 test('negative 160 kV equality and either test-charge sign yield positive display zeros',()=>{

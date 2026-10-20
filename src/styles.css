@@ -32,6 +32,20 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .field-values{margin:8px 0 0;font-size:12px;line-height:1.5;font-variant-numeric:tabular-nums}.field-values>div{display:grid;grid-template-columns:minmax(75px,.8fr) minmax(0,1.2fr);gap:8px;padding:4px 0}.field-values dt{color:var(--muted)}.field-values dd{margin:0;overflow-wrap:anywhere}
 .field-breakdown .equation{font-size:16px;padding:10px 8px}.equation math{font-size:1em}.field-method{font-size:12px;line-height:1.6;padding-left:20px;overflow-wrap:anywhere}.field-method li{padding:4px 0}
 
+/* Native MathML inherits both themes. Each complete equation can scroll locally
+   at narrow widths; the surrounding card and page never grow to its width. */
+.equation{font-size:16px;line-height:1.65;padding:10px;overflow-wrap:normal;max-width:100%;min-width:0}
+.math-line{max-width:100%;overflow-x:auto;overflow-y:hidden;padding:5px 1px;scrollbar-width:thin}
+math{font-family:"Cambria Math","STIX Two Math",math;font-size:1em;color:inherit}
+.math-fallback{display:none}
+@supports not (math-style:normal){math{display:none}.math-fallback{display:inline;white-space:normal;overflow-wrap:anywhere}}
+.math-line math{white-space:nowrap}
+.given-math{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;font-size:14px;margin:12px 0}
+#calculation-body p math,.field-method math{font-size:1em}
+#calculation-body>details{border-top:1px solid var(--border);margin-top:14px}
+#calculation-body>details>summary{font-size:13px}
+@media(max-width:430px){.equation,.field-breakdown .equation{font-size:15px;padding:8px}.given-math{gap:12px;font-size:13px}}
+
 /* Electric Potential: attachment controls stay outside the unchanged canvas. */
 .snap-controls{padding:0 12px 7px;border-top:1px solid var(--border)}.snap-controls>.check{font-size:12px;gap:8px}.snap-controls>.check>span{margin-left:auto;font-size:10px;color:var(--green);font-weight:700}
 .snap-controls>button{width:100%;font-size:12px;padding:7px 6px}.snap-controls [hidden]{display:none!important}

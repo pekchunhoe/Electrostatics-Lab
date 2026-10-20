@@ -1,4 +1,5 @@
 import {test,expect} from '@playwright/test';
+import {expectEquation} from './math-assertions.js';
 import {makeState} from '../../src/presets.js';
 import {challenges} from '../../src/learning.js';
 test.use({hasTouch:true});
@@ -85,7 +86,7 @@ test('diagram layers, exact isolated contours, uniform potential and work signs'
   await tab(page,1);await settings(page);await page.locator('#preset').selectOption('negative');await page.locator('[data-toggle="lines"]').uncheck();await page.locator('[data-toggle="grid"]').check();await expect(page.locator('#live-strip')).not.toContainText(/NaN|Infinity/);await page.locator('[data-toggle="lines"]').check();
   await tab(page,2);await settings(page);await page.locator('#preset').selectOption('positive');await page.locator('[data-toggle="heat"]').check();await page.locator('[data-toggle="overlay"]').check();await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:'test-results/screenshots/isolated-potential.png'});
   await page.locator('#potential-mode').selectOption('uniform');await page.locator('#probe-y').fill('0');await page.locator('#probe-y').dispatchEvent('change');await page.locator('#b-y').fill('0.1');await page.locator('#b-y').dispatchEvent('change');await expect(page.locator('#live-strip')).toContainText('-1500 V');
-  await openDetails(page,'calculations');await expect(page.locator('#calculation-body')).toContainText('W_field');await expect(page.locator('#calculation-body')).toContainText('-3.000 × 10⁻⁶ J');await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:'test-results/screenshots/uniform-potential.png'});
+  await openDetails(page,'calculations');await expectEquation(page,String.raw`W_{\mathrm{field}}=-\Delta U=3.000\times10^{-6}\;\mathrm{J}`);await expectEquation(page,String.raw`\Delta U=-3.000\times10^{-6}\;\mathrm{J}`);await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:'test-results/screenshots/uniform-potential.png'});
   await page.locator('#preset').selectOption('square');await expect(page.locator('#calculation-body')).toContainText('Use up to three charges');expect(errors).toEqual([]);
 });
 test('rendered plate exit, impact freeze and moving equilibrium',async({page})=>{

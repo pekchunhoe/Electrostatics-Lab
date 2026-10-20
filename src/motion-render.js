@@ -45,10 +45,11 @@ export function drawMotion(ctx,s,v,dark,{line,text,arrow}){
     if(m.status!=='Plate impact'){
       const f=m.forces??motionForces(c,m.ex!==0||m.ey!==0,{x:m.vx,y:m.vy}),max=Math.max(...[f.electric,f.gravity,f.magnetic,f.external].map(z=>Math.hypot(z.x,z.y)),1e-300);
       let forceIndex=0;
-      for(const [vector,label,col] of [[f.electric,'Fₑ',color.electric],[f.gravity,'mg',color.gravity],[f.magnetic,'FB',color.external],[f.external,'Fext',color.external]]){
+      for(const [vector,label,col] of [[f.electric,'E',color.electric],[f.gravity,'g',color.gravity],[f.magnetic,'B',color.external],[f.external,'ext',color.external]]){
         const mag=Math.hypot(vector.x,vector.y);if(mag===0)continue;
         const length=30*mag/max;arrow(m,vector,col,length,2);
-        text(label,Math.max(5,Math.min(v.w-30,point.x+vector.x/mag*length+(forceIndex++%2? -20:5))),Math.max(36,Math.min(v.h-45,point.y-vector.y/mag*length-5)),col,10);
+        const x=Math.max(5,Math.min(v.w-30,point.x+vector.x/mag*length+(forceIndex++%2?-20:5))),y=Math.max(36,Math.min(v.h-45,point.y-vector.y/mag*length-5));
+        ctx.save();ctx.fillStyle=col;ctx.font='italic 11px "Cambria Math", serif';ctx.fillText('F',x,y);ctx.font='8px "Cambria Math", serif';ctx.fillText(label,x+7,y+3);ctx.restore();
       }
     }
     const speed=Math.hypot(m.vx,m.vy);

@@ -26,7 +26,7 @@ for(const [width,height] of sizes)for(const dark of [false,true])test(`magnetic 
  let draws=await page.evaluate(()=>window.draws),cross=draws.filter(d=>d.text==='×');expect(cross.length).toBeGreaterThan(12);
  const box=await page.locator('#scene').boundingBox();expect(Math.min(...cross.map(d=>d.x))).toBeLessThan(30);expect(Math.max(...cross.map(d=>d.x))).toBeGreaterThan(box.width-50);expect(Math.max(...cross.map(d=>d.y))).toBeGreaterThan(box.height-50);
  expect(draws.findIndex(d=>d.text==='×')).toBeLessThan(draws.findIndex(d=>d.kind==='particle'));
- expect(draws.some(d=>d.text==='FB')).toBe(true);expect(draws.some(d=>d.text==='mg'||d.text==='Fext')).toBe(false);
+ expect(draws.some(d=>d.text==='F')).toBe(true);expect(draws.some(d=>d.text==='B')).toBe(true);expect(draws.some(d=>d.text==='g'||d.text==='ext')).toBe(false);
  await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:`test-results/screenshots/magnetic-${width}-${height}-${dark?'dark':'light'}-cross.png`});
  await page.locator('#magnetic-reverse').tap();await frames(page);await expect(page.locator('#magnetic-direction')).toHaveText('Out of Page (•)');await expect(page.locator('#equilibrium-status')).toHaveAttribute('data-balanced','false');
  await page.evaluate(()=>{window.draws=[];});await page.locator('[data-toggle="trace"]').check();await frames(page);draws=await page.evaluate(()=>window.draws);expect(draws.filter(d=>d.text==='•').length).toBeGreaterThan(12);expect(draws.filter(d=>d.text==='×').length).toBe(0);

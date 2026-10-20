@@ -1,11 +1,12 @@
 import {test,expect} from '@playwright/test';
+import {expectZeroPotential,expectEquation} from './math-assertions.js';
 test.use({hasTouch:true});
 const sizes=[[320,568],[360,640],[390,844],[430,932],[768,1024],[1280,800],[844,390]];
 const frames=page=>page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
 async function start(page){await page.goto('/');await page.getByRole('tab',{name:'Electric Potential',exact:true}).click();}
 async function details(page,id){if(!await page.locator('#'+id).evaluate(e=>e.open))await page.locator('#'+id+'>summary').click();}
 async function input(page,id,value){await page.locator('#'+id).fill(String(value));await page.locator('#'+id).dispatchEvent('change');await frames(page);}
-async function zero(page){await expect(page.locator('#snap-comparison')).toHaveAttribute('data-equal','true');await expect(page.locator('#snap-comparison')).toContainText('ΔV = 0 V; ΔU = 0 J; W_field = 0 J');}
+async function zero(page){await expect(page.locator('#snap-comparison')).toHaveAttribute('data-equal','true');await expectZeroPotential(page);}
 async function noOverflow(page){expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(page.viewportSize().width);}
 async function captureStrokes(page){await page.evaluate(()=>{
   const ctx=document.getElementById('scene').getContext('2d');window.strokes=[];let path=[];
@@ -76,7 +77,7 @@ test('plate voltage, separation, reversal, precise probes and work signs remain 
   await input(page,'plate-voltage',400);await expect(page.locator('#plate-readout')).toContainText('1.000 × 10⁴ V/m');
   await input(page,'plate-voltage',200);await input(page,'plate-separation',.02);await details(page,'settings');
   await input(page,'probe-y',.005);await input(page,'b-y',0);await details(page,'calculations');
-  await expect(page.locator('#live-strip')).toContainText('-50 V');await expect(page.locator('#calculation-body')).toContainText('-1.000 × 10⁻⁷ J');await expect(page.locator('#calculation-body')).toContainText('W_field = 1.000 × 10⁻⁷ J');
+  await expect(page.locator('#live-strip')).toContainText('-50 V');await expectEquation(page,String.raw`\Delta U=-1.000\times10^{-7}\;\mathrm{J}`);await expectEquation(page,String.raw`W_{\mathrm{field}}=1.000\times10^{-7}\;\mathrm{J}`);
   await page.locator('#reverse-polarity').click();await expect(page.locator('#live-strip')).toContainText('50 V');
   await input(page,'plate-separation',0);await expect(page.locator('#input-error')).toContainText('Enter a value');
   await input(page,'plate-separation',.02);await input(page,'b-y',.02);await expect(page.locator('#input-error')).toContainText('modeled central region');

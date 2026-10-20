@@ -1,4 +1,5 @@
 import {test,expect} from '@playwright/test';
+import {expectZeroPotential,expectEquation} from './math-assertions.js';
 
 test.use({hasTouch:true});
 const referenceK=8.987551792261171e9;
@@ -11,11 +12,10 @@ async function comparison(page){return page.locator('#snap-comparison').evaluate
 async function displayedZero(page){
   await expect(page.locator('#live-strip strong').nth(1)).toHaveText('0 V');
   await expect(page.locator('#snap-comparison')).toHaveAttribute('data-equal','true');
-  await expect(page.locator('#snap-comparison')).toContainText('Computed ΔV = 0 V; ΔU = 0 J; W_field = 0 J.');
-  await expect(page.locator('#calculation-body > p').filter({hasText:'ΔV ='}).filter({hasText:'V_B ='})).toContainText('= 0 V');
-  const energy=page.locator('#calculation-body > p').filter({hasText:'External-work signs'});
-  await expect(energy).toContainText('= 0 J');await expect(energy).toContainText('W_field = 0 J');
-  await expect(page.locator('#equipotential-working > p').filter({hasText:'V_A ='})).toContainText('ΔV = 0 VΔU = 0 JW_field = 0 J');
+  await expectZeroPotential(page);
+  await expectEquation(page,String.raw`\Delta V=0\;\mathrm{V}`,'#equipotential-actual');
+  await expectEquation(page,String.raw`\Delta U=0\;\mathrm{J}`,'#equipotential-actual');
+  await expectEquation(page,String.raw`W_{\mathrm{field}}=0\;\mathrm{J}`,'#equipotential-actual');
 }
 function close(actual,expected,tolerance=2e-7){expect(Math.abs(actual-expected)).toBeLessThanOrEqual(tolerance);}
 async function noOverflow(page){expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(page.viewportSize().width);}
@@ -56,7 +56,7 @@ for(const [width,height] of [[320,568],[360,640],[390,844],[430,932],[768,1024],
     const analytical=p=>referenceK*1e-6/Math.hypot(p.x+.1,p.y)+referenceK*1e-6/Math.hypot(p.x-.1,p.y);
     close(c.va,analytical(a));close(c.vb,analytical(b));expect(Math.abs(c.dv)).toBeLessThanOrEqual(c.tolerance);close(c.dv,analytical(b)-analytical(a));
     close(c.du,2e-9*c.dv,1e-20);close(c.work,-2e-9*c.dv,1e-20);
-    await expect(page.locator('#snap-comparison')).toContainText('Same Equipotential Surface');await expect(page.locator('#snap-comparison')).toContainText('Computed ΔV');
+    await expect(page.locator('#snap-comparison')).toContainText('Same Equipotential Surface');await expect(page.locator('#snap-comparison')).toContainText('Computed:');
     await displayedZero(page);
     expect((await page.locator('#scene').boundingBox()).height).toBe(heightBefore);
     for(const button of [page.locator('#same-potential'),page.locator('#detach-a'),page.locator('#detach-b')])expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(44);
@@ -70,7 +70,7 @@ for(const [width,height] of [[320,568],[360,640],[390,844],[430,932],[768,1024],
     await page.evaluate(()=>scrollTo(0,0));await frames(page);
     await page.screenshot({path:`test-results/screenshots/snap-${width}-${height}-${theme}-detached.png`});
     await details(page,'equipotential-working');await expect(page.locator('#equipotential-working')).toContainText('field can be nonzero');
-    await expect(page.locator('#equipotential-working')).toContainText('Actual current positions');await noOverflow(page);
+    await expect(page.locator('#equipotential-working')).toContainText('Actual Current Positions');await noOverflow(page);
     await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));await frames(page);
     const nav=await page.getByRole('tablist').boundingBox();expect(nav.y).toBeCloseTo(0,0);
     await page.locator('#snap-equipotential').uncheck();expect(await position(page,'probe')).toEqual(beforeA);expect(await position(page,'b')).toEqual(beforeB);
@@ -189,9 +189,10 @@ test('160 kV demo shows exact zeros; a detached tiny difference remains visible 
     await expect(page.locator('#live-strip strong').nth(1)).not.toHaveText('0 V');
     await expect(page.locator('#live-strip strong').nth(1)).toContainText('× 10');
     await expect(page.locator('#snap-comparison')).toHaveAttribute('data-equal','false');
-    const working=page.locator('#equipotential-working > p').filter({hasText:'V_A ='});
-    await expect(working).not.toContainText('ΔV = 0 V');await expect(working).not.toContainText('ΔU = 0 J');await expect(working).not.toContainText('W_field = 0 J');
-    await expect(page.locator('#snap-comparison')).not.toContainText('ΔV = 0 V');
+    for(const selector of ['#equipotential-actual','#snap-comparison']){
+      const equations=await page.locator(selector+' annotation').allTextContents();
+      for(const zero of [String.raw`\Delta V=0\;\mathrm{V}`,String.raw`\Delta U=0\;\mathrm{J}`,String.raw`W_{\mathrm{field}}=0\;\mathrm{J}`])expect(equations).not.toContain(zero);
+    }
     expect((await page.locator('#live-strip strong').nth(1).textContent()).startsWith('-')).toBe(sign===1);
   }
   await page.locator('#same-potential').click();await displayedZero(page);

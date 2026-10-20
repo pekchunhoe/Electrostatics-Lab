@@ -11,10 +11,10 @@ export const chargePresets = {
   square:{label:'Four-charge square',charges:[c('1',1,-.1,.1),c('2',-1,.1,.1),c('3',1,.1,-.1),c('4',-1,-.1,-.1)]}
 };
 export const motionPresets={
-  rest:{label:'A · Initially at rest',x0:0,y0:0,vx:0,vy:0},
-  perpendicular:{label:'B · Perpendicular launch',x0:-.12,y0:0,vx:2,vy:0},
-  parallel:{label:'C · Parallel / reversal',x0:0,y0:.01,vx:0,vy:-.3},
-  equilibrium:{label:'D · Dynamic equilibrium',x0:-.12,y0:0,vx:1,vy:0,gravity:true,voltage:784.8,balanceMode:'gravity',B:.2,bDirection:-1}
+  rest:{label:'Initially Stationary',x0:0,y0:0,vx:0,vy:0},
+  perpendicular:{label:'Perpendicular Launch',x0:-.12,y0:0,vx:2,vy:0},
+  parallel:{label:'Parallel Motion',x0:0,y0:.01,vx:0,vy:-.3},
+  equilibrium:{label:'Dynamic Equilibrium',x0:-.12,y0:0,vx:1,vy:0,gravity:true,voltage:784.8,balanceMode:'gravity',B:.2,bDirection:-1}
 };
 export const motionDefaults={L:.3,orientation:'horizontal',externalX:0,externalY:0,voltage:300,d:.08,q:1e-9,mass:1e-6,gravity:false,x0:-.12,y0:0,vx:2,vy:0};
 export function makeState(tab) {
